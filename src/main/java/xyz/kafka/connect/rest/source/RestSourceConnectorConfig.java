@@ -84,11 +84,12 @@ public class RestSourceConnectorConfig extends AbstractRestConfig {
                 .withKeyValueSeparator("=")
                 .split(getString(OFFSET_INITIAL));
         this.offsetField = getString(RESPONSE_OFFSET_FIELD);
+        this.offsetTracker = new SourceAsyncOffsetTracker(offsetField);
         this.responseParser = (HttpResponseParser) getClass(RESPONSE_PARSER)
                 .getConstructor()
                 .newInstance();
         this.responseParser.configure(originals);
-        this.offsetTracker = new SourceAsyncOffsetTracker(offsetField);
+        this.responseParser.setOffsetTracker(offsetTracker);
     }
 
     public static ConfigDef config() {
