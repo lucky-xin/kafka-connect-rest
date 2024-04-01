@@ -1,0 +1,14 @@
+{
+  "secret": "${secret:-SECe4004e55fb9c3442c1e94245}",
+  "token": "${token:-b5786bcd9172ae305a4ca02b}",
+  "msgtype": 2,
+  "markdownMsg": {
+    "markdown": {
+      "title": "${title:-错误日志告警}",
+      "text": "- 服务名称：${service_name}\n- 时间：${@timestamp}\n- 请求Id：${req_id}\n- 错误消息：${message}\n- [详情](https://kibana.szc-k8s.xyz/app/discover#/?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-5m,to:now))&_a=(columns:!(),filters:!(),index:'81746ae5-6f14-49d7-80bf-6290a4bbb5c0',interval:auto,query:(language:kuery,query:'req_id:%22${req_id}%22'),sort:!(!('@timestamp',desc))))"
+    },
+    "at": {
+      "isAtAll": true
+    }
+  }
+}
