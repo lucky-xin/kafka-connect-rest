@@ -9,6 +9,7 @@ import org.apache.hc.core5.http.message.BasicNameValuePair;
 import org.apache.kafka.common.config.ConfigDef;
 import xyz.kafka.connect.rest.AbstractRestConfig;
 import xyz.kafka.connect.rest.source.parser.HttpResponseParser;
+import xyz.kafka.connect.rest.source.parser.StrategyHttpResponseParser;
 import xyz.kafka.connector.offset.SourceAsyncOffsetTracker;
 import xyz.kafka.connector.recommenders.Recommenders;
 import xyz.kafka.connector.validator.Validators;
