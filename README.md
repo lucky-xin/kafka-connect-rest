@@ -7,67 +7,133 @@
 ```json
 {
   "connector.class": "xyz.kafka.connect.rest.sink.RestSinkConnector",
-  "record.key.field": "time",
-  "behavior.on.null.values": "ignore",
-  "oauth2.token.property": "$.access_token",
-  "errors.log.include.messages": "true",
   "connection.url": "http://dingtalk-hook.piston-alert.svc.cluster.local:6666/message/markdown",
-  "oauth2.client.secret": "******",
-  "transforms": "Drop,ValueToKey,BloomFilter",
-  "value.converter.decimal.format": "NUMERIC",
-  "value.converter.json.fail.invalid.schema": "false",
-  "errors.deadletterqueue.context.headers.enable": "true",
-  "rate.limit": "1000",
-  "batch.json.as.array": "false",
-  "oauth2.client.auth.mode": "header",
-  "errors.deadletterqueue.topic.replication.factor": "8",
-  "transforms.Drop.condition": "valueSchema.fields.keySet().containsAll(['container_name','service_name','message','level','@timestamp','namespace_name']) && !value.container_name.startsWith('it-ucar-data') && (currTimeMills - value.'@timestamp'.getTime() < 300000) && value.level == 'ERROR' && value.namespace_name == 'piston-cloud'",
-  "errors.log.enable": "true",
-  "key.converter": "com.pistonint.kafka.connect.convert.json.JsonConverter",
-  "transforms.ValueToKey.type": "org.apache.kafka.connect.transforms.ValueToKey",
-  "auth.type": "oauth2",
-  "errors.retry.timeout": "600000",
-  "value.converter.latest.compatibility.strict": "false",
-  "behavior.on.error": "log",
-  "transforms.ValueToKey.fields": "service_name,message",
-  "header.separator": ";",
-  "record.key.path": "$.time",
-  "value.converter.date.format": "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX",
   "connection.user": "lucx",
-  "errors.deadletterqueue.topic.name": "kafka_connect_dead_letter_queue",
-  "transforms.Drop.type": "xyz.kafka.connector.transforms.Drop",
-  "name": "rest-sink-szc.jms-error-log-to-dingtalk",
-  "request.body.format": "json",
-  "value.converter.auto.register.schemas": "false",
-  "transforms.BloomFilter.bloom.filter.error.rate": "0.002",
-  "errors.tolerance": "none",
-  "request.body.json.template": "/opt/kafka-connector/dingtalk-templates/jms-error-log.json",
-  "oauth2.client.scope": "read_write",
-  "value.converter.use.latest.version": "true",
-  "transforms.BloomFilter.bloom.filter.capacity": "1000000",
-  "oauth2.token.url": "https://sso.pistonint.com/auth/oauth/token",
-  "oauth2.client.id": "pistonint_cloud",
   "connection.password": "******",
+  "auth.type": "OAUTH2",
+  "auth.expires_in_seconds": 3600,
+  "oauth2.token.url": "https://127.0.0.1:1234/oauth/token?scope=read_write&grant_type=password",
+  "oauth2.client.id": "xxxxx_cloud",
+  "oauth2.client.secret": "**********",
+  "oauth2.client.scope": "read_write",
+  "oauth2.token.json.path": "$.access_token",
+  "oauth2.client.auth.mode": "header",
+
   "tasks.max": "4",
+  "name": "rest-sink-szc.jms-error-log-to-dingtalk",
+  "behavior.on.null.values": "ignore",
+  "behavior.on.error": "log",
+  "rest.request.method": "POST",
+  "rest.request.body.json.template": "/opt/jms-error-log.json",
+  "rest.request.content.type": "application/json",
+  "rest.request.body.format": "json",
+  "rest.connect.timeout.ms": "1000",
+  "rest.request.timeout.ms": "1000",
+
+  "batch.json.as.array": "false",
+  "batch.size": "2",
+
+  "consumer.override.max.request.size": "4194304",
+  "consumer.override.max.poll.records": "2000",
+  "consumer.override.auto.offset.reset": "latest",
+  "topics": "jms-log",
+  "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+  "value.converter": "xyz.kafka.connector.convert.json.JsonConverter",
+  "value.converter.schemas.enable": "false",
+  "value.converter.decimal.format": "NUMERIC",
+  "value.converter.use.big.decimal.for.floats": "false",
+  "value.converter.schema.gen.date.time.infer.enabled": "false",
+  "value.converter.write.big.decimal.as.plain": "true",
+  "value.converter.cache.schemas.enabled": "false",
+  "value.converter.auto.register.schemas": "false",
+  "value.schema.subject.name": "log.jms_value_json",
+
+  "transforms": "ValueToKey,Drop,ToStruct,BloomFilter",
+  "transforms.Drop.type": "xyz.kafka.connector.transforms.Drop",
+  "transforms.Drop.condition": "valueSchema.fields.keySet().containsAll(['container_name','service_name','message','level','@timestamp','namespace_name']) && !value.container_name.startsWith('it-ucar-data') && value.level == 'ERROR' && value.namespace_name == 'piston-cloud'",
+  "transforms.Drop.null.handling.mode": "drop",
+  "transforms.ValueToKey.type": "org.apache.kafka.connect.transforms.ValueToKey",
+  "transforms.ValueToKey.fields": "time",
+  "transforms.BloomFilter.type": "xyz.kafka.connector.transforms.BloomFilter",
+  "transforms.BloomFilter.bloom.filter.key": "bf:{rest-sink-szc}.jms-error-log-to-dingtalk",
+  "transforms.BloomFilter.bloom.filter.capacity": "1000000",
+  "transforms.BloomFilter.bloom.filter.error.rate": "0.002",
+  "transforms.BloomFilter.bloom.filter.expire.seconds": "3600",
+  "transforms.ToStruct.field.pairs": "biz_resp:biz_resp,req_params:req_params",
+  "transforms.ToStruct.type": "xyz.kafka.connector.transforms.ToStruct$Value",
+  "transforms.ToStruct.behavior.on.error": "LOG",
+  "transforms.StringIdToStruct.type": "xyz.kafka.connector.transforms.StringIdToStruct",
+
+  "errors.deadletterqueue.context.headers.enable": "true",
+  "errors.deadletterqueue.topic.name": "kafka_connect_dead_letter_queue",
+  "errors.deadletterqueue.topic.replication.factor": "8",
+  "errors.log.enable": "true",
+  "errors.log.include.messages": "true",
+  "errors.retry.timeout": "600000",
+  "errors.tolerance": "none"
+}
+```
+### xyz.kafka.connect.rest.source.RestSourceConnector配置如下
+
+```json
+{
+  "connector.class": "xyz.kafka.connect.rest.source.RestSourceConnector",
+  "connection.url": "http://127.0.0.1:4321/model/find",
+  "connection.user": "lucx",
+  "connection.password": "***********",
+  "auth.type": "OAUTH2",
+  "auth.expires_in_seconds": 3600,
+  "oauth2.token.url": "http://127.0.0.1:1234/oauth/token?scope=read_write&grant_type=password",
+  "oauth2.client.id": "***********",
+  "oauth2.client.secret": "**********",
+  "oauth2.client.scope": "read_write",
+  "oauth2.token.json.path": "$.access_token",
+  "oauth2.client.auth.mode": "header",
+  "topics": "test.rest",
+  "schema.registry.ssl.endpoint.identification.algorithm": "",
+  "key.converter.json.fail.invalid.schema": "false",
   "key.converter.latest.compatibility.strict": "false",
   "key.converter.use.latest.version": "true",
-  "rest.request.timeout.ms": "1000",
+  "key.converter": "xyz.kafka.connector.convert.json.JsonSchemaConverter",
+  "value.converter": "xyz.kafka.connector.convert.json.JsonSchemaConverter",
+  "value.converter.auto.register.schemas": "false",
+  "value.converter.json.fail.invalid.schema": "false",
+  "value.converter.latest.compatibility.strict": "false",
+  "value.converter.use.latest.version": "true",
+  "value.projection.type": "none",
+  "name": "rest-source.target_data",
+  "producer.override.batch.size": "33554432",
+  "producer.override.compression.type": "zstd",
+  "producer.override.linger.ms": "5",
+  "producer.override.max.request.size": "4194304",
+  "producer.override.message.max.bytes": "33554432",
+  "consumer.override.max.request.size": "4194304",
+  "emit.checkpoints.interval.seconds": "3",
+  "emit.heartbeats.interval.seconds": "3",
   "consumer.override.max.poll.records": "2000",
-  "rest.connect.timeout.ms": "1000",
-  "value.converter": "xyz.kafka.connector.convert.json.JsonConverter",
-  "headers": "Content-Type:application/json",
-  "key.converter.json.fail.invalid.schema": "false",
-  "consumer.override.max.request.size": "41943040",
-  "topics": "jms-log",
-  "batch.size": "1",
-  "request.method": "post",
-  "transforms.BloomFilter.type": "xyz.kafka.connector.transforms.BloomFilter",
-  "transforms.BloomFilter.bloom.filter.expire.seconds": "86400",
-  "auth.expires_in_seconds": "3600",
-  "transforms.Drop.null.handling.mode": "drop",
-  "consumer.override.auto.offset.reset": "latest",
-  "transforms.BloomFilter.bloom.filter.key": "******",
-  "value.converter.cache.schema": "false"
+  "errors.deadletterqueue.context.headers.enable": "true",
+  "errors.deadletterqueue.topic.name": "kafka_connect_dead_letter_queue",
+  "errors.deadletterqueue.topic.replication.factor": "8",
+  "errors.log.enable": "true",
+  "errors.log.include.messages": "true",
+  "errors.retry.timeout": "600000",
+  "errors.tolerance": "none",
+  "tasks.max": "4",
+  "exactly.once.support": "required",
+  "rest.request.method": "POST",
+  "rest.request.body": "{\"brandIds\":[\"bra00200\"]}",
+  "rest.response.parser":"xyz.kafka.connect.rest.source.parser.StrategyHttpResponseParser",
+  "rest.response.parser.delegate": "xyz.kafka.connect.rest.source.parser.FastJsonRecordParser",
+  "rest.response.parser.strategy": "xyz.kafka.connect.rest.source.strategy.StatusCodeHttpResponseParseStrategy",
+  "rest.record.offset.json.path": "id=$.id",
+  "rest.response.record.key.json.path": "id=$.id,name=$.name",
+  "rest.response.record.json.path": "$.data",
+  "key.schema.subject.name":"id.json",
+  "behavior.on.null.values": "log",
+  "behavior.on.error": "log",
+  "rest.request.content.type": "application/json",
+  "max.retries": 5,
+  "retry.backoff.ms": 3000
 }
 ```
 
@@ -887,7 +953,123 @@ The schema registry subject name of the value schema.
 > ##### `rate.limiter.key`
 >
 > The key of the redis rate limiter
+>
 > *Importance:* Medium
+>
 > *Type:* String
+>
 > *Default Value:* equals `connection.url`
+>
 > *Validator:* None empty string
+>
+> ##### `rate.limiter.size`
+>
+> The size of the redis rate limiter
+>
+> *Importance:* Medium
+>
+> *Type:* Long
+>
+> *Default Value:* 10000
+>
+> *Validator:*
+>
+> ##### `rate.limiter.interval.ms`
+>
+> The rate time interval of the redis rate limiter.
+>
+> *Importance:* Medium
+>
+> *Type:* Long
+>
+> *Default Value:* 1000
+>
+> *Validator:*
+>
+> ##### `rate.limiter.acquire.ms`
+>
+> The maximum time to wait for a permit.
+>
+> *Importance:* Medium
+>
+> *Type:* Long
+>
+> *Default Value:* 1000
+>
+> *Validator:*
+
+### redis config
+
+> ##### `redis.nodes`
+>
+> Redis nodes.
+>
+> *Importance:* Medium
+>
+> *Type:* String
+>
+> *Default Value:* 127.0.0.1:6379
+>
+> *Validator:* xyz.kafka.connector.validator.NonEmptyListValidator
+>
+> ##### `redis.user`
+>
+> Redis user.
+>
+> *Importance:* Medium
+>
+> *Type:* String
+>
+> *Default Value:*
+>
+> *Validator:*
+>
+> ##### `redis.password`
+>
+> Redis password.
+>
+> *Importance:* Medium
+>
+> *Type:* String
+>
+> *Default Value:*
+>
+> *Validator:*
+>
+> ##### `redis.database`
+>
+> Redis database.
+>
+> *Importance:* Medium
+>
+> *Type:* String
+>
+> *Default Value:*
+>
+> *Validator:*
+>
+> ##### `redis.use_ssl`
+>
+> use ssl.
+>
+> *Importance:* Medium
+>
+> *Type:* Boolean
+>
+> *Default Value:* false
+>
+> *Validator:*
+>
+> ##### `redis.client.type`
+>
+> Client type, one of: SINGLE, CLUSTER.
+>
+> *Importance:* Medium
+>
+> *Type:* Boolean
+>
+> *Default Value:* false
+>
+> *Validator:* one of: SINGLE, CLUSTER.
+
+### schema registry config
