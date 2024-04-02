@@ -8,7 +8,6 @@ import org.apache.hc.core5.http.Method;
 import org.apache.hc.core5.http.message.BasicNameValuePair;
 import org.apache.kafka.common.config.ConfigDef;
 import xyz.kafka.connect.rest.AbstractRestConfig;
-import xyz.kafka.connect.rest.source.parser.FastJsonRecordParser;
 import xyz.kafka.connect.rest.source.parser.HttpResponseParser;
 import xyz.kafka.connector.offset.SourceAsyncOffsetTracker;
 import xyz.kafka.connector.recommenders.Recommenders;
@@ -50,9 +49,8 @@ public class RestSourceConnectorConfig extends AbstractRestConfig {
 
     public static final String RESPONSE_PARSER = "rest.response.parser";
     private static final String RESPONSE_PARSER_DOC = "REST Response Parser.";
-
-    public static final String RESPONSE_OFFSET_FIELD = "rest.response.offset.field";
-    public static final String RESPONSE_OFFSET_FIELD_DEFAULT = "current";
+    public static final String RESPONSE_OFFSET_FIELD = "rest.response.record.offset.field";
+    public static final String RESPONSE_OFFSET_FIELD_DEFAULT = "offset";
     private static final String RESPONSE_OFFSET_FIELD_DOC = "REST Response Parser.";
 
     private final List<BasicNameValuePair> requestParams;
@@ -84,12 +82,11 @@ public class RestSourceConnectorConfig extends AbstractRestConfig {
                 .withKeyValueSeparator("=")
                 .split(getString(OFFSET_INITIAL));
         this.offsetField = getString(RESPONSE_OFFSET_FIELD);
-        this.offsetTracker = new SourceAsyncOffsetTracker(offsetField);
         this.responseParser = (HttpResponseParser) getClass(RESPONSE_PARSER)
                 .getConstructor()
                 .newInstance();
-        this.responseParser.configure(originals);
-        this.responseParser.setOffsetTracker(offsetTracker);
+        this.offsetTracker = new SourceAsyncOffsetTracker(offsetField);
+        this.responseParser.configure(originals, this);
     }
 
     public static ConfigDef config() {
@@ -121,14 +118,14 @@ public class RestSourceConnectorConfig extends AbstractRestConfig {
                 ).define(
                         RESPONSE_PARSER,
                         CLASS,
-                        FastJsonRecordParser.class,
+                        StrategyHttpResponseParser.class.getName(),
                         HIGH,
                         RESPONSE_PARSER_DOC
                 ).define(
                         REQUEST_METHOD,
                         ConfigDef.Type.STRING,
                         REQUEST_METHOD_DEFAULT,
-                        Validators.oneStringOf(List.of("get", "post"), false),
+                        Validators.oneStringOf(List.of("GET", "POST"), true),
                         ConfigDef.Importance.HIGH,
                         REQUEST_METHOD_DOC,
                         "source",
@@ -137,9 +134,9 @@ public class RestSourceConnectorConfig extends AbstractRestConfig {
                         REQUEST_METHOD_DISPLAY,
                         Recommenders.enumValues(
                                 Method.class,
-                                Method.HEAD,
-                                Method.PUT,
-                                Method.DELETE)
+                                Method.GET,
+                                Method.POST
+                        )
                 );
     }
 

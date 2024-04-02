@@ -12,7 +12,17 @@ import java.util.Collection;
  * @since 2023-03-08
  */
 public interface HttpWriter extends AutoCloseable {
+    /**
+     * records
+     *
+     * @param records
+     */
     void put(Collection<SinkRecord> records);
 
+    /**
+     * failed
+     *
+     * @return
+     */
     boolean failed();
 }

@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * HttpSinkConnector
+ * RestSinkConnector
  *
  * @author luchaoxin
  * @version V 1.0
@@ -43,10 +43,6 @@ public final class RestSinkConnector extends SinkConnector {
 
     @Override
     public void start(Map<String, String> props) {
-        doStart(props);
-    }
-
-    void doStart(Map<String, String> props) {
         this.configProps = props;
         this.config = new RestSinkConnectorConfig(props);
     }

@@ -7,39 +7,28 @@ import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.config.types.Password;
-import org.apache.kafka.connect.errors.ConnectException;
-import org.redisson.api.RedissonClient;
 import xyz.kafka.connect.rest.enums.AuthType;
 import xyz.kafka.connect.rest.enums.BehaviorOnError;
 import xyz.kafka.connect.rest.enums.BehaviorOnNullValues;
 import xyz.kafka.connect.rest.enums.ReportErrorAs;
 import xyz.kafka.connect.rest.utils.HeaderConfigParser;
-import xyz.kafka.connector.config.RedissonConfig;
 import xyz.kafka.connector.formatter.json.JsonFormatterConfig;
 import xyz.kafka.connector.recommenders.Recommenders;
 import xyz.kafka.connector.reporter.Reporter;
 import xyz.kafka.connector.reporter.ReporterConfig;
-import xyz.kafka.connector.validator.FilePathValidator;
 import xyz.kafka.connector.validator.Validators;
 import xyz.kafka.serialization.json.JsonDataConfig;
 import xyz.kafka.utils.StringUtil;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Predicate;
 
-import static org.apache.kafka.common.config.ConfigDef.Importance.MEDIUM;
 import static org.apache.kafka.common.config.ConfigDef.Range.between;
 import static org.apache.kafka.common.config.ConfigDef.Type.PASSWORD;
 import static org.apache.kafka.common.config.ConfigDef.Type.STRING;
@@ -53,14 +42,10 @@ import static org.apache.kafka.common.config.ConfigDef.Type.STRING;
  */
 public abstract class AbstractRestConfig extends AbstractConfig {
 
-    public static final String REST_API_URL = "rest.api.url";
+    public static final String REST_API_URL = "connection.url";
     private static final String REST_API_URL_DOC = "REST API URL.";
 
     private static final String REST_API_URL_DISPLAY = "REST URL";
-
-    public static final String RATE_LIMIT = "rate.limit";
-    private static final String RATE_LIMIT_DOC = "The number of requests executed per second";
-    private static final String RATE_LIMIT_DISPLAY = "The number of requests executed per second";
 
     public static final String BEHAVIOR_ON_NULL_VALUES = "behavior.on.null.values";
     private static final String BEHAVIOR_ON_NULL_VALUES_DOC = "How to handle records with a non-null key and a null " +
@@ -86,23 +71,9 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private static final String HEADER_SEPARATOR_DISPLAY = "header separator";
     public static final String HEADER_SEPARATOR_DEFAULT = ";";
 
-    public static final String RECORD_KEY_PATH = "record.key.path";
-    private static final String RECORD_KEY_PATH_DOC = "Record key path,eg: id,uuid,default is id";
-    private static final String RECORD_KEY_DISPLAY = RECORD_KEY_PATH_DOC;
-    public static final String RECORD_KEY_DEFAULT = "$.id";
+    public static final String REQUEST_CONTENT_TYPE = "rest.request.content.type";
+    public static final String REQUEST_CONTENT_TYPE_DOC = "HTTP content type";
 
-    public static final String RECORD_KEY_FIELD = "record.key.field";
-    private static final String RECORD_KEY_FIELD_DOC = "Record key field name,eg: id,uuid,default is id";
-    private static final String RECORD_KEY_FIELD_DISPLAY = RECORD_KEY_FIELD_DOC;
-    public static final String RECORD_KEY_FIELD_DEFAULT = "id";
-
-    public static final String REQUEST_BODY_JSON_TEMPLATE = "request.body.json.template";
-    private static final String REQUEST_BODY_JSON_TEMPLATE_DOC = "The absolute path of json template file";
-    private static final String REQUEST_BODY_JSON_TEMPLATE_DISPLAY = "The absolute path of json template file";
-    public static final String REQUEST_BODY_JSON_TEMPLATE_DEFAULT = null;
-    public static final String REQUEST_BODY_FORMAT = "request.body.format";
-    private static final String REQUEST_BODY_FORMAT_DOC = "Used to produce request body in either JSON or String format";
-    private static final String REQUEST_BODY_FORMAT_DISPLAY = "Request Body Format";
     public static final String MAX_RETRIES = "max.retries";
     public static final int MAX_RETRIES_DEFAULT = 5;
     private static final String MAX_RETRIES_DOC = "The maximum number of times to retry on errors before failing the task.";
@@ -114,8 +85,7 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     public static final String RETRY_CODES = "retry.codes";
     private static final String RETRY_CODES_DOC = "Retry codes";
     private static final String RETRY_CODES_DISPLAY = RETRY_CODES_DOC;
-    public static final String BATCH_JSON_AS_ARRAY = "batch.json.as.array";
-    public static final boolean BATCH_JSON_AS_ARRAY_DEFAULT = true;
+
     public static final String BATCH_JSON_AS_ARRAY_DOC = "Send individual messages in a JSON array.";
     public static final String BATCH_JSON_AS_ARRAY_DISPLAY = "JSON as arrays";
     public static final String BATCH_MAX_SIZE = "batch.max.size";
@@ -134,26 +104,26 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     public static final String BATCH_SEPARATOR_DEFAULT = ",";
     private static final String BATCH_SEPARATOR_DOC = "Separator for records in a batch.";
     private static final String BATCH_SEPARATOR_DISPLAY = "Batch separator";
-    public static final String PROXY_HOST = "http.proxy.host";
+    public static final String PROXY_HOST = "rest.proxy.host";
     public static final String PROXY_HOST_DEFAULT = "";
     public static final String PROXY_HOST_DOC = "The host or ip of the http proxy.";
     public static final String PROXY_HOST_DISPLAY = "Proxy host";
-    public static final String PROXY_PORT = "http.proxy.port";
+    public static final String PROXY_PORT = "rest.proxy.port";
     public static final int PROXY_PORT_DEFAULT = 0;
     public static final String PROXY_PORT_DOC = "The port number of the http proxy.";
     public static final String PROXY_PORT_DISPLAY = "Proxy port";
-    public static final String PROXY_USER = "http.proxy.user";
+    public static final String PROXY_USER = "rest.proxy.user";
     public static final String PROXY_USER_DEFAULT = "";
     public static final String PROXY_USER_DOC = "The username to be used when authenticating with the http proxy.";
     public static final String PROXY_USER_DISPLAY = "Proxy username";
-    public static final String PROXY_PASSWORD = "http.proxy.password";
+    public static final String PROXY_PASSWORD = "rest.proxy.password";
     public static final String PROXY_PASSWORD_DEFAULT = "";
     public static final String PROXY_PASSWORD_DOC = "The password to be used when authenticating with the http proxy.";
     public static final String PROXY_PASSWORD_DISPLAY = "Proxy password";
-    public static final String CONNECT_TIMEOUT_MS = "http.connect.timeout.ms";
+    public static final String CONNECT_TIMEOUT_MS = "rest.connect.timeout.ms";
     public static final String CONNECT_TIMEOUT_MS_DOC = "Time to wait for a connection to be established.";
     public static final String CONNECT_TIMEOUT_MS_DISPLAY = "HTTP Connect Timeout (ms)";
-    public static final String REQUEST_TIMEOUT_MS = "http.request.timeout.ms";
+    public static final String REQUEST_TIMEOUT_MS = "rest.request.timeout.ms";
     public static final String REQUEST_TIMEOUT_MS_DOC = "Time to wait for a request response to arrive.";
     public static final String REQUEST_TIMEOUT_MS_DISPLAY = "HTTP Request Timeout (ms)";
     public static final String AUTH_TYPE = "auth.type";
@@ -188,11 +158,10 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private static final String OAUTH_CLIENT_SECRET_DEFAULT = "";
     private static final String OAUTH_CLIENT_SECRET_DOC = "The secret used when fetching OAuth2 token";
     private static final String OAUTH_CLIENT_SECRET_DISPLAY = "OAuth2 secret";
-    public static final String OAUTH_TOKEN_PATH = "oauth2.token.path";
+    public static final String OAUTH_TOKEN_PATH = "oauth2.token.json.path";
     public static final String OAUTH_TOKEN_PATH_DEFAULT = "$.access_token";
-    public static final String OAUTH_TOKEN_PATH_DOC = "The path of the property containing the OAuth2 token returned by the http proxy. Default value is ``access_token``.";
+    public static final String OAUTH_TOKEN_PATH_DOC = "The JSON path of the property containing the OAuth2 token returned by the http proxy. Default value is ``access_token``.";
     public static final String OAUTH_TOKEN_PATH_DISPLAY = "OAuth2 token property name";
-
     public static final String OAUTH_CLIENT_AUTH_MODE = "oauth2.client.auth.mode";
     public static final String OAUTH_CLIENT_AUTH_MODE_DEFAULT = "header";
     public static final String OAUTH_CLIENT_AUTH_MODE_DOC = "Specifies how to encode ``client_id`` and ``client_secret`` in the OAuth2 authorization request. If set to 'header', the credentials are encoded as an ``'Authorization: Basic <base-64 encoded client_id:client_secret>'`` HTTP header. If set to 'url', then ``client_id`` and ``client_secret`` are sent as URL encoded parameters.";
@@ -214,7 +183,7 @@ public abstract class AbstractRestConfig extends AbstractConfig {
 
     public static final String THIRD_PARTY_TOKEN_ENDPOINT = "third.party.token.endpoint";
 
-    public static final String THIRD_PARTY_ACCESS_TOKEN_POINTER = "third.party.access.token.pointer";
+    public static final String THIRD_PARTY_ACCESS_TOKEN_JSON_PATH = "third.party.access.token.json.path";
 
     public static final String THIRD_PARTY_AUTHORIZATION_HEADER_NAME = "third.party.authorization.header.name";
 
@@ -245,78 +214,62 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private static final String AUTH_TYPE_DEFAULT = AuthType.NONE.toString();
     public static final String REPORT_ERRORS_AS_DEFAULT = ReportErrorAs.ERROR_STRING.name().toLowerCase();
     private static final ConfigDef.Range NON_NEGATIVE_INT_VALIDATOR = ConfigDef.Range.atLeast(1);
-    private static final Predicate<Object> IS_OAUTH_JWT_ENABLED = v -> "true".equals(String.valueOf(v));
+    public static final String BATCH_JSON_AS_ARRAY = "batch.json.as.array";
+    public static final boolean BATCH_JSON_AS_ARRAY_DEFAULT = true;
 
-    public final String restApiUrl;
-    public final BehaviorOnNullValues behaviorOnNullValues;
-    public final int maxRetries;
-    public final Method reqMethod;
-    public final Optional<String> bodyTemplate;
-    public final Optional<String> recordKeyField;
-    public final Optional<JSONPath> recordKeyPath;
-    public final long rateLimit;
-    public final int retryBackoffMs;
-    public final List<Integer> retryCodes;
-    public final int connectTimeoutMs;
-    public final int requestTimeoutMs;
-    public final Header[] headers;
-    public final String headerSeparator;
-    public final String batchSeparator;
-    public final String batchPrefix;
-    public final String batchSuffix;
-    public final RecordFormat reqBodyFormat;
-    public final BehaviorOnError behaviorOnError;
-    public final boolean batchJsonAsArray;
-    public final String proxyHost;
-    public final int proxyPort;
-    public final String proxyUser;
-    public final Password proxyPassword;
-    public final AuthType authType;
-    public final long authExpiresInSeconds;
-    public final String authUsername;
-    public final Password authPassword;
-    public final String oauthTokenUrl;
-    public final String oauthClientId;
-    public final String oauthClientScope;
-    public final String oauthSecretsEncoding;
-    public final Password oauthClientSecret;
-    public final JSONPath oauthTokenPath;
-    public final String oauthClientHeaders;
-    public final String oauthClientHeaderSeparator;
-    public String thirdPartyTokenReqBody;
-    public String thirdPartyTokenEndpoint;
-    public Header[] thirdPartyTokenReqHeaders;
-    public JSONPath thirdPartyAccessTokenPointer;
-    public String thirdPartyAuthorizationHeaderName;
-    public String thirdPartyAuthorizationHeaderPrefix;
-    public final ReportErrorAs reportErrorAs;
-    public Reporter reporter;
-    public ReporterConfig reporterConfig;
-    public final JsonFormatterConfig jsonFormatterConfig;
-    public final Map<String, Object> sslConfigs;
-    public final boolean proxyEnabled;
-    public final boolean sslEnabled;
-    public final int batchSize;
-    public final RedissonClient redisson;
+    private final boolean batchJsonAsArray;
+    private final String restApiUrl;
+    private final BehaviorOnNullValues behaviorOnNullValues;
+    private final int maxRetries;
+    private final int retryBackoffMs;
+    private final List<Integer> retryCodes;
+    private final int connectTimeoutMs;
+    private final int requestTimeoutMs;
+    private final List<Header> headers;
+    private final String headerSeparator;
+    private final String contentType;
+    private final String batchSeparator;
+    private final String batchPrefix;
+    private final String batchSuffix;
 
-    public final HeaderConfigParser headerConfigParser = HeaderConfigParser.getInstance();
-    public final JsonDataConfig jsonDataConfig;
+    private final BehaviorOnError behaviorOnError;
+
+    private final String proxyHost;
+    private final int proxyPort;
+    private final String proxyUser;
+    private final Password proxyPassword;
+    private final AuthType authType;
+    private final long authExpiresInSeconds;
+    private final String authUsername;
+    private final Password authPassword;
+    private final String oauthTokenUrl;
+    private final String oauthClientId;
+    private final String oauthClientScope;
+    private final String oauthSecretsEncoding;
+    private final Password oauthClientSecret;
+    private final JSONPath oauthTokenPath;
+    private final String oauthClientHeaders;
+    private final String oauthClientHeaderSeparator;
+    private String thirdPartyTokenReqBody;
+    private String thirdPartyTokenEndpoint;
+    private List<Header> thirdPartyTokenReqHeaders;
+    private JSONPath thirdPartyAccessTokenPointer;
+    private String thirdPartyAuthorizationHeaderName;
+    private String thirdPartyAuthorizationHeaderPrefix;
+    private final ReportErrorAs reportErrorAs;
+    private Reporter reporter;
+    private ReporterConfig reporterConfig;
+    private final JsonFormatterConfig jsonFormatterConfig;
+    private final Map<String, Object> sslConfigs;
+    private final boolean proxyEnabled;
+    private final boolean sslEnabled;
+    private final int batchSize;
+    private final HeaderConfigParser headerConfigParser = HeaderConfigParser.getInstance();
+    private final JsonDataConfig jsonDataConfig;
 
     protected AbstractRestConfig(ConfigDef configDef, Map<?, ?> originals) {
         super(configDef, originals);
         this.restApiUrl = this.getString(REST_API_URL);
-        this.reqMethod = reqMethod();
-        this.bodyTemplate = Optional.ofNullable(getString(REQUEST_BODY_JSON_TEMPLATE))
-                .map(t -> {
-                    try (InputStream in = Files.newInputStream(Path.of(t))) {
-                        return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-                    } catch (IOException e) {
-                        throw new ConnectException(e);
-                    }
-                });
-        this.recordKeyPath = Optional.ofNullable(JSONPath.of(getString(RECORD_KEY_PATH)));
-        this.recordKeyField = Optional.ofNullable(getString(RECORD_KEY_FIELD));
-        this.rateLimit = getLong(RATE_LIMIT);
         this.jsonFormatterConfig = new JsonFormatterConfig(
                 originalsWithPrefix(AbstractRestConfig.RecordFormat.JSON.name().toLowerCase() + "."));
         ConfigDef sslConfigDef = new ConfigDef();
@@ -333,16 +286,15 @@ public abstract class AbstractRestConfig extends AbstractConfig {
         this.connectTimeoutMs = getInt(CONNECT_TIMEOUT_MS);
         this.requestTimeoutMs = getInt(REQUEST_TIMEOUT_MS);
         this.headerSeparator = getString(HEADER_SEPARATOR);
+        this.contentType = getString(REQUEST_CONTENT_TYPE);
         this.headers = headerConfigParser.parseHeadersConfig(
                 HEADERS,
                 this.getString(HEADERS),
                 this.headerSeparator
-        ).toArray(Header[]::new);
+        ).stream().toList();
         this.batchSeparator = getString(BATCH_SEPARATOR);
         this.batchPrefix = getString(BATCH_PREFIX);
         this.batchSuffix = getString(BATCH_SUFFIX);
-        this.reqBodyFormat = RecordFormat.valueOfIgnoreCase(getString(REQUEST_BODY_FORMAT));
-        this.batchJsonAsArray = getBoolean(BATCH_JSON_AS_ARRAY);
         this.proxyHost = getString(PROXY_HOST);
         this.proxyPort = getInt(PROXY_PORT);
         this.proxyUser = getString(PROXY_USER);
@@ -366,8 +318,8 @@ public abstract class AbstractRestConfig extends AbstractConfig {
                     THIRD_PARTY_TOKEN_REQ_HEADERS,
                     getString(THIRD_PARTY_TOKEN_REQ_HEADERS),
                     this.headerSeparator
-            ).toArray(Header[]::new);
-            this.thirdPartyAccessTokenPointer = JSONPath.of(getString(THIRD_PARTY_ACCESS_TOKEN_POINTER));
+            ).stream().toList();
+            this.thirdPartyAccessTokenPointer = JSONPath.of(getString(THIRD_PARTY_ACCESS_TOKEN_JSON_PATH));
             this.thirdPartyAuthorizationHeaderName = getString(THIRD_PARTY_AUTHORIZATION_HEADER_NAME);
             this.thirdPartyAuthorizationHeaderPrefix = getString(THIRD_PARTY_AUTHORIZATION_HEADER_PREFIX);
         }
@@ -383,29 +335,20 @@ public abstract class AbstractRestConfig extends AbstractConfig {
             this.reporter = new Reporter();
             this.reporter.configure(reporterConfig);
         }
-        this.sslConfigs = sslConfigDef.parse(originalsWithPrefix(CONNECTION_SSL_CONFIG_PREFIX));
+        this.sslConfigs = Collections.unmodifiableMap(
+                sslConfigDef.parse(originalsWithPrefix(CONNECTION_SSL_CONFIG_PREFIX))
+        );
         this.proxyEnabled = !StringUtil.isEmpty(proxyHost) && proxyPort > 0;
         this.sslEnabled = sslProtocol(restApiUrl) || sslProtocol(oauthTokenUrl);
-        RedissonConfig redissonConfig = new RedissonConfig(originals);
-        this.redisson = redissonConfig.getRedisson();
         this.jsonDataConfig = new JsonDataConfig(originals);
+        this.batchJsonAsArray = getBoolean(BATCH_JSON_AS_ARRAY);
     }
 
-    protected abstract Method reqMethod();
+    public abstract Method reqMethod();
 
     private static void addConnectionGroup(ConfigDef configDef) {
         int order = 0;
         configDef.define(
-                RATE_LIMIT,
-                ConfigDef.Type.LONG,
-                5000,
-                ConfigDef.Importance.HIGH,
-                RATE_LIMIT_DOC,
-                CONNECTION_GROUP,
-                order++,
-                ConfigDef.Width.LONG,
-                RATE_LIMIT_DISPLAY
-        ).define(
                 REST_API_URL,
                 ConfigDef.Type.STRING,
                 ConfigDef.NO_DEFAULT_VALUE,
@@ -461,16 +404,16 @@ public abstract class AbstractRestConfig extends AbstractConfig {
                 ConfigDef.Width.SHORT,
                 HEADER_SEPARATOR_DISPLAY
         ).define(
-                REQUEST_BODY_JSON_TEMPLATE,
+                REQUEST_CONTENT_TYPE,
                 ConfigDef.Type.STRING,
-                REQUEST_BODY_JSON_TEMPLATE_DEFAULT,
-                new FilePathValidator(".json"),
+                null,
+                Validators.nonEmptyString(),
                 ConfigDef.Importance.HIGH,
-                REQUEST_BODY_JSON_TEMPLATE_DOC,
+                REQUEST_CONTENT_TYPE_DOC,
                 CONNECTION_GROUP,
                 order++,
                 ConfigDef.Width.SHORT,
-                REQUEST_BODY_JSON_TEMPLATE_DISPLAY
+                REQUEST_CONTENT_TYPE_DOC
         ).define(
                 PROXY_HOST,
                 ConfigDef.Type.STRING,
@@ -546,27 +489,16 @@ public abstract class AbstractRestConfig extends AbstractConfig {
                 ConfigDef.Width.SHORT,
                 BATCH_SIZE_DISPLAY
         ).define(
-                RECORD_KEY_PATH,
-                STRING,
-                RECORD_KEY_DEFAULT,
-                ConfigDef.Importance.LOW,
-                RECORD_KEY_PATH_DOC,
+                BATCH_JSON_AS_ARRAY,
+                ConfigDef.Type.BOOLEAN,
+                BATCH_JSON_AS_ARRAY_DEFAULT,
+                ConfigDef.Importance.HIGH,
+                BATCH_JSON_AS_ARRAY_DOC,
                 CONNECTION_GROUP,
                 ++order,
                 ConfigDef.Width.SHORT,
-                RECORD_KEY_DISPLAY
-        ).define(
-                RECORD_KEY_FIELD,
-                STRING,
-                RECORD_KEY_FIELD_DEFAULT,
-                ConfigDef.Importance.LOW,
-                RECORD_KEY_FIELD_DOC,
-                CONNECTION_GROUP,
-                ++order,
-                ConfigDef.Width.SHORT,
-                RECORD_KEY_FIELD_DISPLAY
-        )
-        ;
+                BATCH_JSON_AS_ARRAY_DISPLAY
+        );
     }
 
     private static void addAuthGroup(ConfigDef configDef) {
@@ -696,38 +628,61 @@ public abstract class AbstractRestConfig extends AbstractConfig {
                 THIRD_PARTY_TOKEN_REQ_HEADERS,
                 STRING,
                 null,
-                MEDIUM,
-                "Get access token request headers"
+                ConfigDef.Importance.LOW,
+                "Request header list used when fetching third party token",
+                AUTH_GROUP,
+                order++,
+                ConfigDef.Width.SHORT,
+                "Request header list used when fetching third party token"
         ).define(
                 THIRD_PARTY_TOKEN_REQ_BODY,
                 PASSWORD,
                 null,
-                MEDIUM,
-                "Get access token request body"
+                ConfigDef.Importance.LOW,
+                "Request body used when fetching third party token",
+                AUTH_GROUP,
+                order++,
+                ConfigDef.Width.SHORT,
+                "Request body used when fetching third party token"
         ).define(
                 THIRD_PARTY_TOKEN_ENDPOINT,
                 STRING,
                 null,
-                MEDIUM,
-                "Get access token service endpoint"
+                ConfigDef.Importance.LOW,
+                "HTTP endpoint used when fetching third party token",
+                AUTH_GROUP,
+                order++,
+                ConfigDef.Width.SHORT,
+                "HTTP endpoint used when fetching third party token"
         ).define(
-                THIRD_PARTY_ACCESS_TOKEN_POINTER,
+                THIRD_PARTY_ACCESS_TOKEN_JSON_PATH,
                 STRING,
                 null,
-                new ConfigDef.NonEmptyString(),
-                MEDIUM,
-                "Get access token response key"
+                ConfigDef.Importance.LOW,
+                "The json path of access token used when parse third party token",
+                AUTH_GROUP,
+                order++,
+                ConfigDef.Width.SHORT,
+                "The json path of access token used when parse third party token"
         ).define(
                 THIRD_PARTY_AUTHORIZATION_HEADER_NAME,
                 STRING,
+                null,
+                ConfigDef.Importance.LOW,
+                "Third party authorization header name",
                 AUTH_GROUP,
-                MEDIUM,
+                order++,
+                ConfigDef.Width.SHORT,
                 "Third party authorization header name"
         ).define(
                 THIRD_PARTY_AUTHORIZATION_HEADER_PREFIX,
                 STRING,
                 "OAuth2",
-                MEDIUM,
+                ConfigDef.Importance.LOW,
+                "Third party authorization header prefix",
+                AUTH_GROUP,
+                order++,
+                ConfigDef.Width.SHORT,
                 "Third party authorization header prefix"
         );
     }
@@ -787,27 +742,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
 
     private static void addBatchingGroup(ConfigDef configDef) {
         configDef.define(
-                REQUEST_BODY_FORMAT,
-                ConfigDef.Type.STRING,
-                REQUEST_BODY_FORMAT_DEFAULT,
-                Validators.oneOf(RecordFormat.asStringList()),
-                ConfigDef.Importance.MEDIUM,
-                REQUEST_BODY_FORMAT_DOC,
-                BATCHING_GROUP,
-                0,
-                ConfigDef.Width.MEDIUM,
-                REQUEST_BODY_FORMAT_DISPLAY
-        ).define(
-                BATCH_JSON_AS_ARRAY,
-                ConfigDef.Type.BOOLEAN,
-                BATCH_JSON_AS_ARRAY_DEFAULT,
-                ConfigDef.Importance.HIGH,
-                BATCH_JSON_AS_ARRAY_DOC,
-                BATCHING_GROUP,
-                1,
-                ConfigDef.Width.SHORT,
-                BATCH_JSON_AS_ARRAY_DISPLAY
-        ).define(
                 BATCH_MAX_SIZE,
                 ConfigDef.Type.INT,
                 BATCH_MAX_SIZE_DEFAULT,
@@ -900,5 +834,189 @@ public abstract class AbstractRestConfig extends AbstractConfig {
         } catch (MalformedURLException e) {
             return false;
         }
+    }
+
+    public final String restApiUrl() {
+        return restApiUrl;
+    }
+
+    public final BehaviorOnNullValues behaviorOnNullValues() {
+        return behaviorOnNullValues;
+    }
+
+    public final int maxRetries() {
+        return maxRetries;
+    }
+
+    public final int retryBackoffMs() {
+        return retryBackoffMs;
+    }
+
+    public final List<Integer> retryCodes() {
+        return retryCodes;
+    }
+
+    public final int connectTimeoutMs() {
+        return connectTimeoutMs;
+    }
+
+    public final int requestTimeoutMs() {
+        return requestTimeoutMs;
+    }
+
+    public final List<Header> headers() {
+        return headers;
+    }
+
+    public final String headerSeparator() {
+        return headerSeparator;
+    }
+
+    public final String contentType() {
+        return contentType;
+    }
+
+    public final String batchSeparator() {
+        return batchSeparator;
+    }
+
+    public final String batchPrefix() {
+        return batchPrefix;
+    }
+
+    public final String batchSuffix() {
+        return batchSuffix;
+    }
+
+    public final BehaviorOnError behaviorOnError() {
+        return behaviorOnError;
+    }
+
+    public final String proxyHost() {
+        return proxyHost;
+    }
+
+    public final int proxyPort() {
+        return proxyPort;
+    }
+
+    public final String proxyUser() {
+        return proxyUser;
+    }
+
+    public final Password proxyPassword() {
+        return proxyPassword;
+    }
+
+    public final AuthType authType() {
+        return authType;
+    }
+
+    public final long authExpiresInSeconds() {
+        return authExpiresInSeconds;
+    }
+
+    public final String authUsername() {
+        return authUsername;
+    }
+
+    public final Password authPassword() {
+        return authPassword;
+    }
+
+    public final String oauthTokenUrl() {
+        return oauthTokenUrl;
+    }
+
+    public final String oauthClientId() {
+        return oauthClientId;
+    }
+
+    public final String oauthClientScope() {
+        return oauthClientScope;
+    }
+
+    public final String oauthSecretsEncoding() {
+        return oauthSecretsEncoding;
+    }
+
+    public final Password oauthClientSecret() {
+        return oauthClientSecret;
+    }
+
+    public final JSONPath oauthTokenPath() {
+        return oauthTokenPath;
+    }
+
+    public final String oauthClientHeaders() {
+        return oauthClientHeaders;
+    }
+
+    public final String oauthClientHeaderSeparator() {
+        return oauthClientHeaderSeparator;
+    }
+
+    public String thirdPartyTokenReqBody() {
+        return thirdPartyTokenReqBody;
+    }
+
+    public String thirdPartyTokenEndpoint() {
+        return thirdPartyTokenEndpoint;
+    }
+
+    public List<Header> thirdPartyTokenReqHeaders() {
+        return thirdPartyTokenReqHeaders;
+    }
+
+    public JSONPath thirdPartyAccessTokenPointer() {
+        return thirdPartyAccessTokenPointer;
+    }
+
+    public String thirdPartyAuthorizationHeaderName() {
+        return thirdPartyAuthorizationHeaderName;
+    }
+
+    public String thirdPartyAuthorizationHeaderPrefix() {
+        return thirdPartyAuthorizationHeaderPrefix;
+    }
+
+    public final ReportErrorAs reportErrorAs() {
+        return reportErrorAs;
+    }
+
+    public Reporter reporter() {
+        return reporter;
+    }
+
+    public ReporterConfig reporterConfig() {
+        return reporterConfig;
+    }
+
+    public final JsonFormatterConfig jsonFormatterConfig() {
+        return jsonFormatterConfig;
+    }
+
+    public final Map<String, Object> sslConfigs() {
+        return sslConfigs;
+    }
+
+    public final boolean proxyEnabled() {
+        return proxyEnabled;
+    }
+
+    public final boolean sslEnabled() {
+        return sslEnabled;
+    }
+
+    public final int batchSize() {
+        return batchSize;
+    }
+
+    public final JsonDataConfig jsonDataConfig() {
+        return jsonDataConfig;
+    }
+
+    public boolean batchJsonAsArray() {
+        return batchJsonAsArray;
     }
 }

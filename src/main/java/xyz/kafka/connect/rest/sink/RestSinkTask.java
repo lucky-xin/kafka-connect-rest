@@ -34,7 +34,7 @@ public class RestSinkTask extends RateLimitSinkTask {
                 .map(SinkTaskContext::errantRecordReporter)
                 .orElse(null));
         Map<String,String> configs = new HashMap<>(props);
-        configs.put("rate.limiter.key",config.restApiUrl);
+        configs.put("rate.limiter.key",config.restApiUrl());
         super.start(configs);
     }
 

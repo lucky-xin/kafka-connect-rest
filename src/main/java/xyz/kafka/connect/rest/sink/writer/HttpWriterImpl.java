@@ -57,12 +57,16 @@ public class HttpWriterImpl implements HttpWriter {
     private final AuthHandler authHandler;
     private final AtomicReference<ConnectException> error;
     private final ErrantRecordReporter reporter;
+    private final ContentType contentType;
 
     public HttpWriterImpl(RestSinkConnectorConfig config, ErrantRecordReporter reporter) {
         this(config, new HttpClientFactory(config), reporter);
     }
 
-    HttpWriterImpl(RestSinkConnectorConfig config, HttpClientFactory clientFactory, ErrantRecordReporter reporter) {
+    HttpWriterImpl(RestSinkConnectorConfig config,
+                   HttpClientFactory clientFactory,
+                   ErrantRecordReporter reporter
+    ) {
         this(config, clientFactory, AuthHandlerFactory.createAuthFactory(config, clientFactory), reporter);
     }
 
@@ -77,14 +81,15 @@ public class HttpWriterImpl implements HttpWriter {
         this.authHandler = authHandler;
         this.bodyFormatter = BodyFormatterFactory.create(config);
         this.reporter = reporter;
+        this.contentType = ContentType.create(config.contentType());
         init();
     }
 
     private void init() {
         try {
             this.authHandler.getAuthorizationHeaderValue();
-            if (this.config.bodyTemplate.isPresent()) {
-                JSON.register(HashMap.class, new FastJsonWriter(this.config.bodyTemplate));
+            if (this.config.bodyTemplate().isPresent()) {
+                JSON.register(HashMap.class, new FastJsonWriter(this.config.bodyTemplate()));
             }
         } catch (IOException e) {
             throw new ConnectException("Could not get authorization header");
@@ -129,37 +134,39 @@ public class HttpWriterImpl implements HttpWriter {
             if (sr.valueSchema() == null || sr.valueSchema().type() != Schema.Type.STRUCT) {
                 throw new ConnectException("value schema must be struct,current schema is " + sr.valueSchema().type());
             }
-            Map<String, Object> value = StructUtil.fromConnectData(
-                    sr.valueSchema(), sr.value(), this.config.jsonDataConfig
-            );
-            Object key = StructUtil.fromConnectData(sr.keySchema(), sr.key(), this.config.jsonDataConfig);
+            Map<String, Object> value = StructUtil.fromConnectData(sr.valueSchema(), sr.value(), this.config.jsonDataConfig());
+            Object key = StructUtil.fromConnectData(sr.keySchema(), sr.key(), this.config.jsonDataConfig());
             if (sr.value() == null) {
-                handleTombstone(sr).ifPresent(t -> batchDelete.put(value, sr));
+                handleTombstone(sr)
+                        .ifPresent(t -> batchDelete.put(value, sr));
             } else {
                 addKeyIfNeed(value, key);
                 batchUpdate.put(value, sr);
             }
         }
         sendBatch(batchDelete, Method.DELETE);
-        sendBatch(batchUpdate, this.config.reqMethod);
+        sendBatch(batchUpdate, this.config.reqMethod());
     }
 
     private <T> void sendBatch(Map<T, SinkRecord> batch, Method method) {
+        if (batch.isEmpty()) {
+            return;
+        }
         throwIfFailed();
         List<T> values = new ArrayList<>(batch.keySet());
         List<T> tmps = null;
         try {
             int times;
             int num = batch.size();
-            times = num / this.config.batchSize;
-            if (num % this.config.batchSize != 0) {
+            times = num / this.config.batchSize();
+            if (num % this.config.batchSize() != 0) {
                 times++;
             }
             for (int i = 0; i < times; i++) {
-                int fromIndex = this.config.batchSize * i;
-                int toIndex = this.config.batchSize * (i + 1);
+                int fromIndex = this.config.batchSize() * i;
+                int toIndex = this.config.batchSize() * (i + 1);
                 tmps = values.subList(fromIndex, Math.min(toIndex, num));
-                sendBatch(this.config.restApiUrl, method, tmps);
+                sendBatch(this.config.restApiUrl(), method, tmps);
             }
         } catch (Exception e) {
             if (tmps != null && reporter != null) {
@@ -176,7 +183,7 @@ public class HttpWriterImpl implements HttpWriter {
             String payload = method == Method.DELETE
                     ? this.bodyFormatter.formatDelete(records)
                     : this.bodyFormatter.formatUpdate(records);
-            req.setBody(payload.getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
+            req.setBody(payload.getBytes(StandardCharsets.UTF_8), contentType);
             log.debug("Submitting {} request with {} records", method, records.size());
             this.executeRequestWithBackOff(req, formattedUrl, payload, records.size());
         } catch (RequestFailureException | ReportingFailureException | IOException | IllegalArgumentException e) {
@@ -186,18 +193,18 @@ public class HttpWriterImpl implements HttpWriter {
 
     private void configureRequest(HttpRequest requestBase) throws IOException {
         this.authHandler.configureAuthentication(requestBase);
-        requestBase.setHeaders(this.config.headers);
+        config.headers().forEach(requestBase::addHeader);
     }
 
     private Optional<Object> handleTombstone(SinkRecord sr) throws NullRecordException {
-        if (this.config.behaviorOnNullValues == BehaviorOnNullValues.FAIL) {
+        if (this.config.behaviorOnNullValues() == BehaviorOnNullValues.FAIL) {
             String errorMsg = String.format("Found record with topic=%s, partition=%s, offset=%s and key=%s having value as NULL, " +
                     "failing the Connect task.", sr.topic(), sr.kafkaPartition(), sr.kafkaOffset(), sr.key());
             throw new NullRecordException(errorMsg);
         } else {
-            if (this.config.behaviorOnNullValues == BehaviorOnNullValues.DELETE) {
+            if (this.config.behaviorOnNullValues() == BehaviorOnNullValues.DELETE) {
                 return Optional.ofNullable(StructUtil.toConnectData(sr.keySchema(), sr.key()));
-            } else if (this.config.behaviorOnNullValues == BehaviorOnNullValues.LOG) {
+            } else if (this.config.behaviorOnNullValues() == BehaviorOnNullValues.LOG) {
                 log.warn("Record with topic={}, partition={}, offset={} and key={} having value as NULL," +
                                 " ignoring and processing subsequent records.",
                         sr.topic(), sr.kafkaPartition(), sr.kafkaOffset(), sr.key());
@@ -247,7 +254,7 @@ public class HttpWriterImpl implements HttpWriter {
                 }
             };
             Future<SimpleHttpResponse> future = this.clientFactory.asyncClient().execute(request, callback);
-            SimpleHttpResponse resp = future.get(this.config.requestTimeoutMs, TimeUnit.MILLISECONDS);
+            SimpleHttpResponse resp = future.get(this.config.requestTimeoutMs(), TimeUnit.MILLISECONDS);
             int status = resp.getCode();
             if (!(status > 199 && status < 300)) {
                 String oauthResponseString = resp.getBodyText();
@@ -263,10 +270,10 @@ public class HttpWriterImpl implements HttpWriter {
     }
 
     private void handleException(Exception e) {
-        if (this.config.behaviorOnError == BehaviorOnError.FAIL) {
+        if (this.config.behaviorOnError() == BehaviorOnError.FAIL) {
             error.compareAndSet(null, new ConnectException(e));
         } else {
-            if (this.config.behaviorOnError == BehaviorOnError.LOG) {
+            if (this.config.behaviorOnError() == BehaviorOnError.LOG) {
                 log.error("send http error.", e);
             } else {
                 log.trace("send http error.", e);
@@ -276,22 +283,13 @@ public class HttpWriterImpl implements HttpWriter {
 
     @SuppressWarnings("all")
     private void addKeyIfNeed(Map<String, Object> m, Object key) {
-        this.config.recordKeyPath
+        this.config.keyJsonPath()
                 .ifPresent(t -> {
-                    if (t.eval(m) != null) {
+                    Object kv = null;
+                    if (m.get(t.getKey()) != null || (kv = t.getValue().eval(m)) == null) {
                         return;
                     }
-                    if (this.config.recordKeyField.isPresent()) {
-                        this.config.recordKeyField.ifPresent(f -> {
-                            m.put(f, key);
-                        });
-                        return;
-                    }
-
-                    if (key instanceof Map km) {
-                        m.putAll(km);
-                        return;
-                    }
+                    m.put(t.getKey(), kv);
                 });
     }
 

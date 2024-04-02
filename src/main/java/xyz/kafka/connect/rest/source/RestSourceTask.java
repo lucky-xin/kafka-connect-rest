@@ -41,7 +41,7 @@ public class RestSourceTask extends RateLimitSourceTask {
             this.reader = new HttpReaderImpl(config);
             this.offset = loadOffset(config.initialOffset());
             Map<String, String> configs = new HashMap<>(settings);
-            configs.put("rate.limiter.key", config.restApiUrl);
+            configs.put("rate.limiter.key", config.restApiUrl());
             super.start(configs);
         } catch (Exception e) {
             throw new IllegalStateException(e);
@@ -77,7 +77,7 @@ public class RestSourceTask extends RateLimitSourceTask {
     @Override
     public void commit() {
         offset = config.offsetTracker()
-                .lowWatermarkOffset()
+                .lowestWatermarkOffset()
                 .map(Offset::of)
                 .orElse(offset);
         log.debug("Offset set to {}", offset);

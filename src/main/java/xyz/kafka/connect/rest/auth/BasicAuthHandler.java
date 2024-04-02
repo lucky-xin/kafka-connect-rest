@@ -27,7 +27,7 @@ public class BasicAuthHandler extends AuthHandlerBase {
     @Override
     public Header getAuthorizationHeaderValue() {
         log.debug("Configuring Basic Authentication for this connection");
-        String userpass = String.format("%s:%s", this.config.authUsername, this.config.authPassword.value());
+        String userpass = String.format("%s:%s", this.config.authUsername(), this.config.authPassword().value());
         return new BasicHeader("Authorization",
                 String.format("Basic %s",
                         new String(Base64.getEncoder().encode(userpass.getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8)));

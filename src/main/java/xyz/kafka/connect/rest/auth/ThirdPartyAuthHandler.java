@@ -54,18 +54,18 @@ public class ThirdPartyAuthHandler extends AuthHandlerBase {
                     String error = resp.getReasonPhrase();
                     throw new IOException(String.format("Received a non-2xx response from the configured OAuth token URL." +
                                     " REST Response code: %d, %s, url: %s : %s", status, resp.getReasonPhrase(),
-                            this.config.oauthTokenUrl, error));
+                            this.config.oauthTokenUrl(), error));
                 } else {
                     String oauthResponseString = EntityUtils.toString(entity);
                     EntityUtils.consume(entity);
                     JSONObject node = JSON.parseObject(oauthResponseString);
-                    Object eval = this.config.thirdPartyAccessTokenPointer.eval(node);
+                    Object eval = this.config.thirdPartyAccessTokenPointer().eval(node);
                     if (eval == null) {
                         throw new IOException(String.format("Could not find auth token in %s field. response fields = %s",
-                                this.config.thirdPartyAccessTokenPointer.toString(), node.keySet()));
+                                this.config.thirdPartyAccessTokenPointer().toString(), node.keySet()));
                     } else {
-                        return new BasicHeader(this.config.thirdPartyAuthorizationHeaderName, String.format("%s %s",
-                                this.config.thirdPartyAuthorizationHeaderPrefix, eval.toString()));
+                        return new BasicHeader(this.config.thirdPartyAuthorizationHeaderName(), String.format("%s %s",
+                                this.config.thirdPartyAuthorizationHeaderPrefix(), eval.toString()));
                     }
                 }
             }
@@ -81,9 +81,9 @@ public class ThirdPartyAuthHandler extends AuthHandlerBase {
     }
 
     HttpPost createThirdPartyTokenRequest() {
-        HttpPost post = new HttpPost(URI.create(this.config.thirdPartyTokenEndpoint));
-        post.setEntity(new StringEntity(this.config.thirdPartyTokenReqBody, ContentType.APPLICATION_JSON));
-        post.setHeaders(this.config.headers);
+        HttpPost post = new HttpPost(URI.create(this.config.thirdPartyTokenEndpoint()));
+        post.setEntity(new StringEntity(this.config.thirdPartyTokenReqBody(), ContentType.APPLICATION_JSON));
+        config.headers().forEach(post::addHeader);
         return post;
     }
 

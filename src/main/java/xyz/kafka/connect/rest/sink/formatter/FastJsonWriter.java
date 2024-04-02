@@ -42,7 +42,7 @@ public class FastJsonWriter implements ObjectWriter<Map<String, Object>> {
             String jsonTemplate = bodyTemplate.get();
             StringSubstitutor sub = new StringSubstitutor((Map<String, Object>) object);
             result = sub.replace(jsonTemplate);
-            writer.writeBinary(result.getBytes(StandardCharsets.UTF_8));
+            writer.writeString(result);
         } catch (Exception e) {
             log.error("parse object error:" + result, e);
             log.error("object:{}", JSON.toJSONString(object));

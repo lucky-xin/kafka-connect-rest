@@ -15,5 +15,4 @@ public enum BehaviorOnNullValues {
     DELETE,
     LOG,
     FAIL;
-
 }

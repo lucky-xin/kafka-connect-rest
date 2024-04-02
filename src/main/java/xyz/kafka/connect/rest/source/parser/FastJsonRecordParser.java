@@ -1,5 +1,6 @@
 package xyz.kafka.connect.rest.source.parser;
 
+import cn.hutool.core.map.MapUtil;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.alibaba.fastjson2.schema.JSONSchema;
@@ -15,14 +16,14 @@ import com.saasquatch.jsonschemainferrer.FormatInferrers;
 import io.confluent.kafka.schemaregistry.client.SchemaMetadata;
 import io.confluent.kafka.schemaregistry.json.JsonSchema;
 import io.confluent.kafka.schemaregistry.json.JsonSchemaProvider;
-import lombok.Setter;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceRecord;
 import xyz.kafka.connect.rest.model.Offset;
-import xyz.kafka.connector.offset.OffsetTracker;
+import xyz.kafka.connect.rest.source.RestSourceConnectorConfig;
 import xyz.kafka.connector.utils.StructUtil;
 import xyz.kafka.registry.client.CachedSchemaRegistryCli;
 import xyz.kafka.schema.generator.JsonSchemaGenerator;
@@ -33,12 +34,12 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
@@ -58,14 +59,9 @@ public class FastJsonRecordParser implements HttpResponseParser {
 
     private FastJsonRecordParserConfig config;
 
-    private static final String TIMESTAMP_FIELD_NAME = "timestamp";
-
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private CachedSchemaRegistryCli schemaRegistry;
-
-    @Setter
-    private OffsetTracker<Map<String, ?>, Map<String, ?>, Map<String, ?>> offsetTracker;
 
     private final Cache<String, Schema> cache = Caffeine.newBuilder()
             .expireAfterWrite(6, TimeUnit.HOURS)
@@ -73,8 +69,12 @@ public class FastJsonRecordParser implements HttpResponseParser {
             .softValues()
             .build();
 
+    private final AtomicInteger offset = new AtomicInteger(0);
+
+    private RestSourceConnectorConfig c;
+
     @Override
-    public void configure(Map<String, ?> map) {
+    public void configure(Map<String, ?> map, AbstractConfig config) {
         OBJECT_MAPPER.configure(SerializationFeature.FAIL_ON_UNWRAPPED_TYPE_IDENTIFIERS, false);
         OBJECT_MAPPER.configure(JsonGenerator.Feature.WRITE_BIGDECIMAL_AS_PLAIN, true);
         OBJECT_MAPPER.configure(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS, false);
@@ -86,44 +86,38 @@ public class FastJsonRecordParser implements HttpResponseParser {
                         FormatInferrers.dateTime()
                 )
         );
-        schemaRegistry = new CachedSchemaRegistryCli(
+        this.config = new FastJsonRecordParserConfig(map);
+        this.schemaRegistry = new CachedSchemaRegistryCli(
                 List.of(System.getenv("KAFKA_SCHEMA_REGISTRY_SVC_ENDPOINT")),
                 1000,
                 Collections.singletonList(new JsonSchemaProvider()),
                 config.originalsWithPrefix("schema.registry."),
                 ConfigUtil.getRestHeaders("SCHEMA_REGISTRY_CLIENT_REST_HEADERS")
         );
-
-        this.config = new FastJsonRecordParserConfig(map);
+        if (config instanceof RestSourceConnectorConfig x) {
+            c = x;
+        }
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public List<SourceRecord> parse(ClassicHttpResponse resp) {
         try {
-            JSONObject body = JSON.parseObject(resp.getEntity().getContent().readAllBytes());
-            Map<String, Object> offsets = getOffset(body);
-            Instant timestamp = getTimestamp(body)
-                    .map(t -> config.timestampParser().parse(t))
-                    .orElseGet(() -> ofNullable(offsets.get(TIMESTAMP_FIELD_NAME))
-                            .map(String.class::cast)
-                            .map(t -> config.timestampParser().parse(t))
-                            .orElse(Instant.now())
-                    );
-            Object eval = config.responseRecordPointer().eval(body);
-            if (eval instanceof Collection<?> coll) {
+            JSONObject res = JSON.parseObject(resp.getEntity().getContent().readAllBytes());
+            Object data = config.recordPointer().eval(res);
+            if (data instanceof Collection<?> coll) {
                 return coll.stream()
                         .map(t -> (Map<String, Object>) t)
-                        .map(r -> toSourceRecord(timestamp, r, offsets))
+                        .map(this::toSourceRecord)
                         .toList();
             }
-            if (eval instanceof Map<?, ?> m) {
+            if (data instanceof Map<?, ?> m) {
                 return Stream.of(m)
                         .map(t -> (Map<String, Object>) t)
-                        .map(r -> toSourceRecord(timestamp, r, offsets))
+                        .map(this::toSourceRecord)
                         .toList();
             }
-            String clazz = eval == null ? null : eval.getClass().getName();
+            String clazz = data == null ? null : data.getClass().getName();
             throw new UnsupportedOperationException("Unsupported response type:" + clazz);
         } catch (IOException | UnsupportedOperationException e) {
             throw new ConnectException(e);
@@ -131,17 +125,24 @@ public class FastJsonRecordParser implements HttpResponseParser {
 
     }
 
-    protected final SourceRecord toSourceRecord(
-            Instant timestamp,
-            Map<String, Object> data,
-            Map<String, Object> offsets) {
+    protected final SourceRecord toSourceRecord(Map<String, Object> data) {
+        Map<String, Object> offsets = getOffset(data);
+        Instant timestamp = getTimestamp(data)
+                .map(t -> config.timestampParser().parse(t))
+                .orElseGet(() -> ofNullable(offsets.get(this.config.timestampFieldName()))
+                        .map(String.class::cast)
+                        .map(t -> config.timestampParser().parse(t))
+                        .orElse(Instant.now())
+                );
         Map<String, Object> key = getKey(data);
-        Offset offset = Offset.of(offsets, key, timestamp, 0);
         Struct keyStruct = toStruct(key, config.keySubjectName(), true);
         Struct valueStruct = toStruct(data, config.valueSubjectName(), false);
-        Map<String, ?> sourcePartition = new HashMap<>();
-        Map<String, ?> sourceOffset = offset.toMap();
-        offsetTracker.pendingRecord(sourceOffset);
+        Map<String, ?> sourcePartition = Collections.emptyMap();
+        int o = config.offsetFieldName()
+                .map(t -> MapUtil.getInt(data, t))
+                .orElse(this.offset.incrementAndGet());
+        Map<String, ?> sourceOffset = Offset.of(offsets, key, timestamp, o).toMap();
+        c.offsetTracker().pendingRecord(sourceOffset);
         return new SourceRecord(
                 sourcePartition,
                 sourceOffset,
@@ -157,7 +158,7 @@ public class FastJsonRecordParser implements HttpResponseParser {
 
     private Struct toStruct(Map<String, Object> data, String subjectName, boolean key) {
         try {
-            Schema schema = null;
+            Schema schema;
             if (subjectName != null) {
                 SchemaMetadata meta = schemaRegistry.getLatestSchemaMetadata(subjectName);
                 String schemaText = meta.getSchema();
@@ -181,17 +182,21 @@ public class FastJsonRecordParser implements HttpResponseParser {
     }
 
     Map<String, Object> getKey(Map<String, Object> node) {
-        return config.keyPointers().entrySet().stream()
+        return config.keyJsonPaths()
+                .entrySet()
+                .stream()
                 .collect(toMap(Entry::getKey, e -> e.getValue().eval(node)));
     }
 
     Optional<String> getTimestamp(Map<String, Object> node) {
-        return config.timestampPointer().map(pointer -> pointer.eval(node))
+        return config.timestampJsonPath().map(pointer -> pointer.eval(node))
                 .map(Object::toString);
     }
 
     Map<String, Object> getOffset(Map<String, Object> node) {
-        return config.offsetPointers().entrySet().stream()
+        return config.offsetJsonPaths()
+                .entrySet()
+                .stream()
                 .collect(toMap(Entry::getKey, e -> e.getValue().eval(node)));
     }
 }

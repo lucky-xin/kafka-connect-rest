@@ -25,9 +25,9 @@ public class StringBodyFormatter implements BodyFormatter {
         return records.stream()
                 .map(JSON::toJSONString)
                 .collect(Collectors.joining(
-                                this.config.batchSeparator,
-                                this.config.batchPrefix,
-                                this.config.batchSuffix
+                                this.config.batchSeparator(),
+                                this.config.batchPrefix(),
+                                this.config.batchSuffix()
                         )
                 );
     }

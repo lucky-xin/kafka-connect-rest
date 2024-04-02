@@ -8,14 +8,15 @@ import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.entity.UrlEncodedFormEntity;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.NameValuePair;
 import org.apache.hc.core5.http.io.HttpClientResponseHandler;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.http.message.BasicNameValuePair;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceRecord;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jetbrains.annotations.NotNull;
 import xyz.kafka.connect.rest.auth.AuthHandler;
 import xyz.kafka.connect.rest.auth.AuthHandlerFactory;
 import xyz.kafka.connect.rest.client.HttpClientFactory;
@@ -32,6 +33,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -42,15 +44,14 @@ import java.util.stream.Collectors;
  * @since 2023-03-08
  */
 public class HttpReaderImpl implements HttpReader {
-    private static final Logger log = LoggerFactory.getLogger(HttpReaderImpl.class);
     private final RestSourceConnectorConfig config;
     private final AuthHandler authHandler;
-
     private final Map<String, Object> requestBody;
     private final List<BasicNameValuePair> requestParams;
     private final HttpClientFactory clientFactory;
     private final HttpResponseParser responseParser;
     private final Retry retry;
+    private final boolean hasContentType;
 
     public HttpReaderImpl(RestSourceConnectorConfig config) {
         this(config, new HttpClientFactory(config));
@@ -78,43 +79,41 @@ public class HttpReaderImpl implements HttpReader {
                         .retryExceptions(
                                 SocketException.class, SocketTimeoutException.class, ConnectTimeoutException.class
                         ).failAfterMaxAttempts(true)
-                        .maxAttempts(config.maxRetries)
-                        .waitDuration(Duration.ofMillis(config.retryBackoffMs))
+                        .maxAttempts(config.maxRetries())
+                        .waitDuration(Duration.ofMillis(config.retryBackoffMs()))
                         .build()
         );
-    }
-
-    private void init() {
-        try {
-            this.authHandler.getAuthorizationHeaderValue();
-        } catch (IOException e) {
-            throw new ConnectException("Could not get authorization header");
-        }
+        this.hasContentType = this.config.headers()
+                .stream()
+                .anyMatch(h -> h.getName().equals(HttpHeaders.CONTENT_TYPE));
     }
 
     private HttpUriRequestBase createRequest(Offset offset) throws IOException {
         HttpUriRequestBase req = switch (config.reqMethod()) {
             case GET -> {
-                List<NameValuePair> collect = offset.toMap().entrySet().stream()
-                        .map(t -> new BasicNameValuePair(t.getKey(), StringUtil.toString(t.getValue())))
-                        .collect(Collectors.toList());
-                collect.addAll(requestParams);
-                HttpGet get = new HttpGet(URI.create(config.restApiUrl));
-                get.setEntity(new UrlEncodedFormEntity(collect));
+                HttpGet get = new HttpGet(URI.create(config.restApiUrl()));
+                get.setEntity(new UrlEncodedFormEntity(createNameValuePairs(offset)));
                 yield get;
             }
             case POST -> {
                 Map<String, Object> body = new HashMap<>(offset.toMap());
-                body.putAll(requestBody);
-                HttpPost post = new HttpPost(URI.create(config.restApiUrl));
-                post.setEntity(new StringEntity(JSON.toJSONString(body)));
+                Optional.ofNullable(requestBody)
+                        .ifPresent(body::putAll);
+                HttpPost post = new HttpPost(URI.create(config.restApiUrl()));
+                if (ContentType.APPLICATION_JSON.getMimeType().equals(config.contentType())) {
+                    post.setEntity(new StringEntity(JSON.toJSONString(body), ContentType.APPLICATION_JSON));
+                } else {
+                    post.setEntity(new UrlEncodedFormEntity(createNameValuePairs(offset)));
+                }
                 yield post;
             }
             default -> throw new ConnectException("Unsupported method " + config.reqMethod());
         };
-
         this.authHandler.configureAuthentication(req);
-        req.setHeaders(config.headers);
+        config.headers().forEach(req::addHeader);
+        if (!this.hasContentType) {
+            req.addHeader(HttpHeaders.CONTENT_TYPE, config.contentType());
+        }
         return req;
     }
 
@@ -134,4 +133,13 @@ public class HttpReaderImpl implements HttpReader {
         }
     }
 
+    @NotNull
+    private List<NameValuePair> createNameValuePairs(Offset offset) {
+        List<NameValuePair> collect = offset.toMap().entrySet().stream()
+                .map(t -> new BasicNameValuePair(t.getKey(), StringUtil.toString(t.getValue())))
+                .collect(Collectors.toList());
+        Optional.ofNullable(requestParams)
+                .ifPresent(collect::addAll);
+        return collect;
+    }
 }

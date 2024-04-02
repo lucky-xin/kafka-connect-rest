@@ -82,11 +82,11 @@ public class HttpClientFactory {
 
     Http5RequestRetryStrategy requestRetryStrategy(AbstractRestConfig config) {
         return new Http5RequestRetryStrategy(
-                config.maxRetries,
-                TimeValue.ofMilliseconds(config.retryBackoffMs),
+                config.maxRetries(),
+                TimeValue.ofMilliseconds(config.retryBackoffMs()),
                 List.of(SocketException.class, SocketTimeoutException.class,
                         ConnectTimeoutException.class, NoHttpResponseException.class),
-                config.retryCodes
+                config.retryCodes()
         );
     }
 
@@ -111,7 +111,7 @@ public class HttpClientFactory {
     }
 
     private AsyncClientConnectionManager createAsyncConnectionManager() {
-        Map<String, Object> sslConfigs = this.config.sslConfigs;
+        Map<String, Object> sslConfigs = this.config.sslConfigs();
         String supportedProtocol = Optional.ofNullable(sslConfigs.get("ssl.protocol"))
                 .map(Object::toString)
                 .orElse(null);
@@ -165,9 +165,9 @@ public class HttpClientFactory {
 
     private RequestConfig createRequestConfig() {
         RequestConfig.Builder builder = RequestConfig.custom()
-                .setConnectionRequestTimeout(Timeout.of(Duration.ofMillis(this.config.connectTimeoutMs)))
-                .setResponseTimeout(Timeout.of(Duration.ofMillis(this.config.requestTimeoutMs)))
-                .setMaxRedirects(config.maxRetries)
+                .setConnectionRequestTimeout(Timeout.of(Duration.ofMillis(this.config.connectTimeoutMs())))
+                .setResponseTimeout(Timeout.of(Duration.ofMillis(this.config.requestTimeoutMs())))
+                .setMaxRedirects(config.maxRetries())
                 .setConnectionKeepAlive(TimeValue.ofSeconds(30))
                 .setContentCompressionEnabled(true);
         configureProxy(builder);
@@ -176,23 +176,23 @@ public class HttpClientFactory {
 
     @SuppressWarnings("deprecation")
     private void configureProxy(RequestConfig.Builder requestConfigBuilder) {
-        if (this.config.proxyEnabled) {
-            log.info("Establishing proxy host:port {}:{} for Http {}", this.config.proxyHost,
-                    this.config.proxyPort, this.config.reqMethod);
-            requestConfigBuilder.setProxy(new HttpHost(this.config.proxyHost, this.config.proxyPort));
+        if (this.config.proxyEnabled()) {
+            log.info("Establishing proxy host:port {}:{} for Http {}", this.config.proxyHost(),
+                    this.config.proxyPort(), this.config.reqMethod());
+            requestConfigBuilder.setProxy(new HttpHost(this.config.proxyHost(), this.config.proxyPort()));
         }
     }
 
     private SSLContext sslContext() {
         try {
-            if (!this.config.sslEnabled) {
+            if (!this.config.sslEnabled()) {
                 TrustStrategy ts = (x509Certificates, s) -> true;
                 return SSLContexts.custom()
                         .loadTrustMaterial(ts)
                         .build();
             }
             log.info("Configuring SSL for this connection");
-            Map<String, Object> sslConfigs = this.config.sslConfigs;
+            Map<String, Object> sslConfigs = this.config.sslConfigs();
             SSLContextBuilder contextBuilder = SSLContexts.custom();
             Optional.ofNullable(sslConfigs.get("ssl.keystore.type"))
                     .map(Object::toString)
@@ -216,7 +216,7 @@ public class HttpClientFactory {
     }
 
     private HostnameVerifier getHostnameVerifier() {
-        boolean label = Optional.ofNullable(this.config.sslConfigs.get("ssl.endpoint.identification.algorithm"))
+        boolean label = Optional.ofNullable(this.config.sslConfigs().get("ssl.endpoint.identification.algorithm"))
                 .map(Object::toString)
                 .map(String::isEmpty)
                 .orElse(true);
@@ -225,7 +225,7 @@ public class HttpClientFactory {
 
     private void addTrustMaterial(SSLContextBuilder contextBuilder)
             throws NoSuchAlgorithmException, KeyStoreException, CertificateException, IOException {
-        String location = Optional.ofNullable(this.config.sslConfigs.get("ssl.truststore.location"))
+        String location = Optional.ofNullable(this.config.sslConfigs().get("ssl.truststore.location"))
                 .map(Object::toString)
                 .orElse(null);
         Password password = this.config.getPassword("https.ssl.truststore.password");
@@ -241,7 +241,7 @@ public class HttpClientFactory {
 
     private void addKeystoreContext(SSLContextBuilder contextBuilder)
             throws IOException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException, KeyStoreException {
-        Object keystoreLocationConfig = this.config.sslConfigs.get("ssl.keystore.location");
+        Object keystoreLocationConfig = this.config.sslConfigs().get("ssl.keystore.location");
         Password kp = this.config.getPassword("https.ssl.keystore.password");
         Password keyPassword = this.config.getPassword("https.ssl.key.password");
         if (keystoreLocationConfig != null && kp != null && keyPassword != null) {
@@ -251,12 +251,12 @@ public class HttpClientFactory {
     }
 
     private Optional<CredentialsProvider> credentialsProvider() {
-        if (this.config.proxyEnabled && !StringUtil.isEmpty(this.config.proxyUser)) {
+        if (this.config.proxyEnabled() && !StringUtil.isEmpty(this.config.proxyUser())) {
             log.info("Establishing proxy credentials for this connection");
             BasicCredentialsProvider credsProvider = new BasicCredentialsProvider();
-            credsProvider.setCredentials(new AuthScope(this.config.proxyHost, this.config.proxyPort),
-                    new UsernamePasswordCredentials(this.config.proxyUser,
-                            this.config.proxyPassword.value().toCharArray()));
+            credsProvider.setCredentials(new AuthScope(this.config.proxyHost(), this.config.proxyPort()),
+                    new UsernamePasswordCredentials(this.config.proxyUser(),
+                            this.config.proxyPassword().value().toCharArray()));
             return Optional.of(credsProvider);
         }
         return Optional.empty();
