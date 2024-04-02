@@ -18,7 +18,6 @@
   "oauth2.client.scope": "read_write",
   "oauth2.token.json.path": "$.access_token",
   "oauth2.client.auth.mode": "header",
-
   "tasks.max": "4",
   "name": "rest-sink-szc.jms-error-log-to-dingtalk",
   "behavior.on.null.values": "ignore",
@@ -29,10 +28,8 @@
   "rest.request.body.format": "json",
   "rest.connect.timeout.ms": "1000",
   "rest.request.timeout.ms": "1000",
-
   "batch.json.as.array": "false",
   "batch.size": "2",
-
   "consumer.override.max.request.size": "4194304",
   "consumer.override.max.poll.records": "2000",
   "consumer.override.auto.offset.reset": "latest",
@@ -47,7 +44,6 @@
   "value.converter.cache.schemas.enabled": "false",
   "value.converter.auto.register.schemas": "false",
   "value.schema.subject.name": "log.jms_value_json",
-
   "transforms": "ValueToKey,Drop,ToStruct,BloomFilter",
   "transforms.Drop.type": "xyz.kafka.connector.transforms.Drop",
   "transforms.Drop.condition": "valueSchema.fields.keySet().containsAll(['container_name','service_name','message','level','@timestamp','namespace_name']) && !value.container_name.startsWith('it-ucar-data') && value.level == 'ERROR' && value.namespace_name == 'piston-cloud'",
@@ -63,7 +59,6 @@
   "transforms.ToStruct.type": "xyz.kafka.connector.transforms.ToStruct$Value",
   "transforms.ToStruct.behavior.on.error": "LOG",
   "transforms.StringIdToStruct.type": "xyz.kafka.connector.transforms.StringIdToStruct",
-
   "errors.deadletterqueue.context.headers.enable": "true",
   "errors.deadletterqueue.topic.name": "kafka_connect_dead_letter_queue",
   "errors.deadletterqueue.topic.replication.factor": "8",
@@ -73,6 +68,7 @@
   "errors.tolerance": "none"
 }
 ```
+
 ### xyz.kafka.connect.rest.source.RestSourceConnector配置如下
 
 ```json
@@ -122,13 +118,13 @@
   "exactly.once.support": "required",
   "rest.request.method": "POST",
   "rest.request.body": "{\"brandIds\":[\"bra00200\"]}",
-  "rest.response.parser":"xyz.kafka.connect.rest.source.parser.StrategyHttpResponseParser",
+  "rest.response.parser": "xyz.kafka.connect.rest.source.parser.StrategyHttpResponseParser",
   "rest.response.parser.delegate": "xyz.kafka.connect.rest.source.parser.FastJsonRecordParser",
   "rest.response.parser.strategy": "xyz.kafka.connect.rest.source.strategy.StatusCodeHttpResponseParseStrategy",
   "rest.record.offset.json.path": "id=$.id",
   "rest.response.record.key.json.path": "id=$.id,name=$.name",
   "rest.response.record.json.path": "$.data",
-  "key.schema.subject.name":"id.json",
+  "key.schema.subject.name": "id.json",
   "behavior.on.null.values": "log",
   "behavior.on.error": "log",
   "rest.request.content.type": "application/json",
@@ -883,22 +879,6 @@ The name of the field timestamp.
 
 *Validator:*  None empty string
 
-#### xyz.kafka.connect.rest.source.parser.DateTimeFormatterTimestampParser配置
-
-> ##### `rest.response.record.timestamp.parser.pattern`
-> The date time pattern of the field timestamp.
-> *Importance:* Medium
-> *Type:* String
-> *Default Value:* yyyy-MM-dd'T'HH:mm:ss[.SSS]X
-> *Validator:* None empty string
->
-> ##### `rest.response.record.timestamp.parser.zone`
-> The time zone of the field timestamp.
-> *Importance:* Medium
-> *Type:* String
-> *Default Value:* UTC
-> *Validator:*
-
 ##### `rest.response.record.json.path`
 
 [JSONPath](https://github.com/alibaba/fastjson/wiki/JSONPath)
@@ -1071,5 +1051,31 @@ The schema registry subject name of the value schema.
 > *Default Value:* false
 >
 > *Validator:* one of: SINGLE, CLUSTER.
+
+#### xyz.kafka.connect.rest.source.parser.DateTimeFormatterTimestampParser配置
+
+> ##### `rest.response.record.timestamp.parser.pattern`
+>
+> The date time pattern of the field timestamp.
+>
+> *Importance:* Medium
+>
+> *Type:* String
+>
+> *Default Value:* yyyy-MM-dd'T'HH:mm:ss[.SSS]X
+>
+> *Validator:* None empty string
+>
+> ##### `rest.response.record.timestamp.parser.zone`
+>
+> The time zone of the field timestamp.
+>
+> *Importance:* Medium
+>
+> *Type:* String
+>
+> *Default Value:* UTC
+>
+> *Validator:*
 
 ### schema registry config
