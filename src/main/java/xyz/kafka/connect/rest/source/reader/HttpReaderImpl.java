@@ -1,9 +1,6 @@
 package xyz.kafka.connect.rest.source.reader;
 
 import com.alibaba.fastjson2.JSON;
-import io.github.resilience4j.retry.Retry;
-import io.github.resilience4j.retry.RetryConfig;
-import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
@@ -26,10 +23,7 @@ import xyz.kafka.connect.rest.source.parser.HttpResponseParser;
 import xyz.kafka.utils.StringUtil;
 
 import java.io.IOException;
-import java.net.SocketException;
-import java.net.SocketTimeoutException;
 import java.net.URI;
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +44,6 @@ public class HttpReaderImpl implements HttpReader {
     private final List<BasicNameValuePair> requestParams;
     private final HttpClientFactory clientFactory;
     private final HttpResponseParser responseParser;
-    private final Retry retry;
     private final boolean hasContentType;
 
     public HttpReaderImpl(RestSourceConnectorConfig config) {
@@ -73,16 +66,6 @@ public class HttpReaderImpl implements HttpReader {
         this.requestBody = config.requestBody();
         this.requestParams = config.requestParams();
         this.responseParser = config.getHttpResponseParser();
-        this.retry = Retry.of(
-                "HttpReader",
-                RetryConfig.custom()
-                        .retryExceptions(
-                                SocketException.class, SocketTimeoutException.class, ConnectTimeoutException.class
-                        ).failAfterMaxAttempts(true)
-                        .maxAttempts(config.maxRetries())
-                        .waitDuration(Duration.ofMillis(config.retryBackoffMs()))
-                        .build()
-        );
         this.hasContentType = this.config.headers()
                 .stream()
                 .anyMatch(h -> h.getName().equals(HttpHeaders.CONTENT_TYPE));
@@ -109,7 +92,7 @@ public class HttpReaderImpl implements HttpReader {
             }
             default -> throw new ConnectException("Unsupported method " + config.reqMethod());
         };
-        this.authHandler.configureAuthentication(req);
+        this.authHandler.setAuthentication(req);
         config.headers().forEach(req::addHeader);
         if (!this.hasContentType) {
             req.addHeader(HttpHeaders.CONTENT_TYPE, config.contentType());
@@ -119,7 +102,7 @@ public class HttpReaderImpl implements HttpReader {
 
     @Override
     public List<SourceRecord> poll(Offset offset) {
-        return this.retry.executeSupplier(() -> doPollRecords(offset));
+        return doPollRecords(offset);
     }
 
     @SuppressWarnings("all")

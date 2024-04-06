@@ -1,7 +1,6 @@
 package xyz.kafka.connect.rest.auth;
 
 import org.apache.hc.core5.http.HttpRequest;
-import xyz.kafka.connect.rest.exception.RequestFailureException;
 
 /**
  * NoAuthHandler
@@ -15,11 +14,6 @@ public class NoAuthHandler implements AuthHandler {
     }
 
     @Override
-    public void configureAuthentication(HttpRequest... requests) {
-    }
-
-    @Override
-    public boolean retryAuthentication(RequestFailureException rfe) {
-        return false;
+    public void setAuthentication(HttpRequest... requests) {
     }
 }

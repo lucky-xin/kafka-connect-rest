@@ -85,7 +85,7 @@ public class FastJsonRecordParserConfig extends AbstractConfig {
                 .define(
                         RECORD_TIMESTAMP_PARSER_CLASS,
                         CLASS,
-                        EpochMillisTimestampParser.class,
+                        EpochMillisTimestampParser.class.getName(),
                         LOW,
                         "The parser class of response timestamp field.")
                 .define(
@@ -128,7 +128,7 @@ public class FastJsonRecordParserConfig extends AbstractConfig {
                         "The subject of key schema"
                 ).define(
                         VALUE_SCHEMA_SUBJECT_NAME,
-                        ConfigDef.Type.CLASS,
+                        STRING,
                         null,
                         ConfigDef.Importance.MEDIUM,
                         "The subject of value schema")
@@ -144,7 +144,7 @@ public class FastJsonRecordParserConfig extends AbstractConfig {
                         STRING,
                         null,
                         ConfigDef.Importance.MEDIUM,
-                        "The name of the field offset."
+                        "The name of the field offset in the record"
                 );
     }
 

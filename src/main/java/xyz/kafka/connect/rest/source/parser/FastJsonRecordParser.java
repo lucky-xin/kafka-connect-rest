@@ -78,8 +78,8 @@ public class FastJsonRecordParser implements HttpResponseParser {
         OBJECT_MAPPER.configure(SerializationFeature.FAIL_ON_UNWRAPPED_TYPE_IDENTIFIERS, false);
         OBJECT_MAPPER.configure(JsonGenerator.Feature.WRITE_BIGDECIMAL_AS_PLAIN, true);
         OBJECT_MAPPER.configure(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS, false);
-        jsonData = new JsonData();
-        jsonSchemaGenerator = new JsonSchemaGenerator(false, true, true,
+        this.jsonData = new JsonData();
+        this.jsonSchemaGenerator = new JsonSchemaGenerator(false, true, true,
                 List.of(
                         FormatInferrers.ip(),
                         FormatInferrers.email(),

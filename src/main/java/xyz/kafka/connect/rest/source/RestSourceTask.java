@@ -59,9 +59,7 @@ public class RestSourceTask extends RateLimitSourceTask {
 
     @Override
     public List<SourceRecord> doPoll() {
-        List<SourceRecord> records = this.reader.poll(offset);
-        log.debug("Request for offset {} yields {}/{} new records", offset.toMap(), records.size(), records.size());
-        return records;
+        return this.reader.poll(offset);
     }
 
     @Override

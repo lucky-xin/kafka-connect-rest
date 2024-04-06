@@ -3,6 +3,7 @@ package xyz.kafka.connect.rest.auth;
 import xyz.kafka.connect.rest.AbstractRestConfig;
 import xyz.kafka.connect.rest.client.HttpClientFactory;
 
+
 /**
  * AuthHandlerFactory
  *
@@ -11,14 +12,13 @@ import xyz.kafka.connect.rest.client.HttpClientFactory;
  * @since 2023-03-08
  */
 public class AuthHandlerFactory {
-
     public static AuthHandler createAuthFactory(AbstractRestConfig config, HttpClientFactory clientFactory) {
         return switch (config.authType()) {
             case BASIC -> new BasicAuthHandler(config);
             case OAUTH2 -> new OAuth2AuthHandler(clientFactory, config);
             case NONE -> new NoAuthHandler();
             case THIRD_PARTY -> new ThirdPartyAuthHandler(clientFactory, config);
-            default -> throw new IllegalArgumentException("Auth method not supported " + config.authType());
+            default ->  throw new IllegalStateException("Unexpected auth type: " + config.authType());
         };
     }
 

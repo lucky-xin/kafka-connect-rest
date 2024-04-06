@@ -20,7 +20,6 @@ public class RequestFailureException extends ConnectException {
 
     public RequestFailureException(
             Integer status,
-
             String reasonPhrase,
             String payloadString,
             String formattedUrl,

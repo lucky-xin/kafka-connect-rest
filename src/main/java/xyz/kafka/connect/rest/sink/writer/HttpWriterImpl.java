@@ -6,6 +6,7 @@ import org.apache.hc.client5.http.async.methods.SimpleHttpResponse;
 import org.apache.hc.core5.concurrent.FutureCallback;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpRequest;
+import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.Method;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -18,8 +19,6 @@ import xyz.kafka.connect.rest.auth.AuthHandlerFactory;
 import xyz.kafka.connect.rest.client.HttpClientFactory;
 import xyz.kafka.connect.rest.enums.BehaviorOnError;
 import xyz.kafka.connect.rest.enums.BehaviorOnNullValues;
-import xyz.kafka.connect.rest.exception.NullRecordException;
-import xyz.kafka.connect.rest.exception.ReportingFailureException;
 import xyz.kafka.connect.rest.exception.RequestFailureException;
 import xyz.kafka.connect.rest.sink.RestSinkConnectorConfig;
 import xyz.kafka.connect.rest.sink.formatter.BodyFormatter;
@@ -29,7 +28,6 @@ import xyz.kafka.connector.utils.StructUtil;
 
 import java.io.IOException;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -132,11 +130,12 @@ public class HttpWriterImpl implements HttpWriter {
                 throw new ConnectException("key must not be null");
             }
             if (sr.valueSchema() == null || sr.valueSchema().type() != Schema.Type.STRUCT) {
-                throw new ConnectException("value schema must be struct,current schema is " + sr.valueSchema().type());
+                throw new ConnectException("value schema must be struct, current schema is " + (sr.valueSchema() != null ? sr.valueSchema().type() : "null"));
             }
             Map<String, Object> value = StructUtil.fromConnectData(sr.valueSchema(), sr.value(), this.config.jsonDataConfig());
             Object key = StructUtil.fromConnectData(sr.keySchema(), sr.key(), this.config.jsonDataConfig());
             if (sr.value() == null) {
+                // 如果值为空，则将其作为删除操作处理
                 handleTombstone(sr)
                         .ifPresent(t -> batchDelete.put(value, sr));
             } else {
@@ -156,9 +155,8 @@ public class HttpWriterImpl implements HttpWriter {
         List<T> values = new ArrayList<>(batch.keySet());
         List<T> tmps = null;
         try {
-            int times;
             int num = batch.size();
-            times = num / this.config.batchSize();
+            int times = num / this.config.batchSize();
             if (num % this.config.batchSize() != 0) {
                 times++;
             }
@@ -183,24 +181,24 @@ public class HttpWriterImpl implements HttpWriter {
             String payload = method == Method.DELETE
                     ? this.bodyFormatter.formatDelete(records)
                     : this.bodyFormatter.formatUpdate(records);
-            req.setBody(payload.getBytes(StandardCharsets.UTF_8), contentType);
+            req.setBody(payload, contentType);
             log.debug("Submitting {} request with {} records", method, records.size());
             this.executeRequestWithBackOff(req, formattedUrl, payload, records.size());
-        } catch (RequestFailureException | ReportingFailureException | IOException | IllegalArgumentException e) {
+        } catch (RequestFailureException | IOException | IllegalArgumentException e) {
             this.handleException(e);
         }
     }
 
     private void configureRequest(HttpRequest requestBase) throws IOException {
-        this.authHandler.configureAuthentication(requestBase);
-        config.headers().forEach(requestBase::addHeader);
+        this.authHandler.setAuthentication(requestBase);
+        this.config.headers().forEach(requestBase::addHeader);
     }
 
-    private Optional<Object> handleTombstone(SinkRecord sr) throws NullRecordException {
+    private Optional<Object> handleTombstone(SinkRecord sr) throws ConnectException {
         if (this.config.behaviorOnNullValues() == BehaviorOnNullValues.FAIL) {
             String errorMsg = String.format("Found record with topic=%s, partition=%s, offset=%s and key=%s having value as NULL, " +
                     "failing the Connect task.", sr.topic(), sr.kafkaPartition(), sr.kafkaOffset(), sr.key());
-            throw new NullRecordException(errorMsg);
+            throw new ConnectException(errorMsg);
         } else {
             if (this.config.behaviorOnNullValues() == BehaviorOnNullValues.DELETE) {
                 return Optional.ofNullable(StructUtil.toConnectData(sr.keySchema(), sr.key()));
@@ -256,7 +254,7 @@ public class HttpWriterImpl implements HttpWriter {
             Future<SimpleHttpResponse> future = this.clientFactory.asyncClient().execute(request, callback);
             SimpleHttpResponse resp = future.get(this.config.requestTimeoutMs(), TimeUnit.MILLISECONDS);
             int status = resp.getCode();
-            if (!(status > 199 && status < 300)) {
+            if (!(status >= HttpStatus.SC_SUCCESS && status < HttpStatus.SC_REDIRECTION)) {
                 String oauthResponseString = resp.getBodyText();
                 return new RequestFailureException(status, resp.getReasonPhrase(),
                         payloadString, formattedUrl, oauthResponseString, null, null);

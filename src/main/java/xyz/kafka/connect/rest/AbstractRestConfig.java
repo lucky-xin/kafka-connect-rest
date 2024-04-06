@@ -41,12 +41,9 @@ import static org.apache.kafka.common.config.ConfigDef.Type.STRING;
  * @since 2023-07-19
  */
 public abstract class AbstractRestConfig extends AbstractConfig {
-
     public static final String REST_API_URL = "connection.url";
     private static final String REST_API_URL_DOC = "REST API URL.";
-
     private static final String REST_API_URL_DISPLAY = "REST URL";
-
     public static final String BEHAVIOR_ON_NULL_VALUES = "behavior.on.null.values";
     private static final String BEHAVIOR_ON_NULL_VALUES_DOC = "How to handle records with a non-null key and a null " +
             "value (i.e. Kafka tombstone records). Valid options are ``ignore``, ``delete``, ``log`` and ``fail``.";
@@ -65,15 +62,12 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private static final String HEADERS_DOC = "REST headers to be included in all requests. Individual headers should be separated by the ``header.separator``";
     private static final String HEADERS_DISPLAY = "headers";
     public static final String HEADERS_DEFAULT = "";
-
     public static final String HEADER_SEPARATOR = "header.separator";
     private static final String HEADER_SEPARATOR_DOC = "Separator character used in headers property.";
     private static final String HEADER_SEPARATOR_DISPLAY = "header separator";
     public static final String HEADER_SEPARATOR_DEFAULT = ";";
-
     public static final String REQUEST_CONTENT_TYPE = "rest.request.content.type";
     public static final String REQUEST_CONTENT_TYPE_DOC = "HTTP content type";
-
     public static final String MAX_RETRIES = "max.retries";
     public static final int MAX_RETRIES_DEFAULT = 5;
     private static final String MAX_RETRIES_DOC = "The maximum number of times to retry on errors before failing the task.";
@@ -205,6 +199,9 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private static final String BATCH_SIZE_DISPLAY = "Batch Size";
     private static final int BATCH_SIZE_DEFAULT = 2000;
 
+    public static final String BATCH_JSON_AS_ARRAY = "batch.json.as.array";
+    public static final boolean BATCH_JSON_AS_ARRAY_DEFAULT = true;
+
     private static final String BEHAVIOR_ON_NULL_VALUES_DEFAULT = BehaviorOnNullValues.IGNORE.toString().toLowerCase();
     private static final String BEHAVIOR_ON_ERROR_DEFAULT = BehaviorOnError.FAIL.name().toLowerCase();
     public static final String REQUEST_BODY_FORMAT_DEFAULT = RecordFormat.STRING.toString();
@@ -214,9 +211,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private static final String AUTH_TYPE_DEFAULT = AuthType.NONE.toString();
     public static final String REPORT_ERRORS_AS_DEFAULT = ReportErrorAs.ERROR_STRING.name().toLowerCase();
     private static final ConfigDef.Range NON_NEGATIVE_INT_VALIDATOR = ConfigDef.Range.atLeast(1);
-    public static final String BATCH_JSON_AS_ARRAY = "batch.json.as.array";
-    public static final boolean BATCH_JSON_AS_ARRAY_DEFAULT = true;
-
     private final boolean batchJsonAsArray;
     private final String restApiUrl;
     private final BehaviorOnNullValues behaviorOnNullValues;
@@ -251,7 +245,7 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private final String oauthClientHeaders;
     private final String oauthClientHeaderSeparator;
     private String thirdPartyTokenReqBody;
-    private String thirdPartyTokenEndpoint;
+    private final String thirdPartyTokenEndpoint;
     private List<Header> thirdPartyTokenReqHeaders;
     private JSONPath thirdPartyAccessTokenPointer;
     private String thirdPartyAuthorizationHeaderName;
@@ -264,7 +258,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private final boolean proxyEnabled;
     private final boolean sslEnabled;
     private final int batchSize;
-    private final HeaderConfigParser headerConfigParser = HeaderConfigParser.getInstance();
     private final JsonDataConfig jsonDataConfig;
 
     protected AbstractRestConfig(ConfigDef configDef, Map<?, ?> originals) {
@@ -287,6 +280,7 @@ public abstract class AbstractRestConfig extends AbstractConfig {
         this.requestTimeoutMs = getInt(REQUEST_TIMEOUT_MS);
         this.headerSeparator = getString(HEADER_SEPARATOR);
         this.contentType = getString(REQUEST_CONTENT_TYPE);
+        HeaderConfigParser headerConfigParser = HeaderConfigParser.getInstance();
         this.headers = headerConfigParser.parseHeadersConfig(
                 HEADERS,
                 this.getString(HEADERS),
