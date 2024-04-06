@@ -32,7 +32,10 @@ public class TemplateUrlUtils {
         Set<String> set = new HashSet<>();
         Matcher m = PATTERN.matcher(url);
         while (m.find()) {
-            String transformedToken = m.group().replace("$", "").replace("{", "").replace("}", "");
+            String transformedToken = m.group()
+                    .replace("$", "")
+                    .replace("{", "")
+                    .replace("}", "");
             if (!NON_INTERESTING_TOKENS.contains(transformedToken)) {
                 set.add(transformedToken);
             }

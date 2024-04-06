@@ -23,7 +23,6 @@ import xyz.kafka.connect.rest.exception.RequestFailureException;
 import xyz.kafka.connect.rest.sink.RestSinkConnectorConfig;
 import xyz.kafka.connect.rest.sink.formatter.BodyFormatter;
 import xyz.kafka.connect.rest.sink.formatter.BodyFormatterFactory;
-import xyz.kafka.connect.rest.sink.formatter.FastJsonWriter;
 import xyz.kafka.connector.utils.StructUtil;
 
 import java.io.IOException;
@@ -51,7 +50,7 @@ public class HttpWriterImpl implements HttpWriter {
     private static final Logger log = LoggerFactory.getLogger(HttpWriterImpl.class);
     private final RestSinkConnectorConfig config;
     private final HttpClientFactory clientFactory;
-    private final BodyFormatter bodyFormatter;
+    private final BodyFormatter<Object> bodyFormatter;
     private final AuthHandler authHandler;
     private final AtomicReference<ConnectException> error;
     private final ErrantRecordReporter reporter;
@@ -136,8 +135,7 @@ public class HttpWriterImpl implements HttpWriter {
             Object key = StructUtil.fromConnectData(sr.keySchema(), sr.key(), this.config.jsonDataConfig());
             if (sr.value() == null) {
                 // 如果值为空，则将其作为删除操作处理
-                handleTombstone(sr)
-                        .ifPresent(t -> batchDelete.put(value, sr));
+                handleTombstone(sr).ifPresent(t -> batchDelete.put(t, sr));
             } else {
                 addKeyIfNeed(value, key);
                 batchUpdate.put(value, sr);
@@ -152,8 +150,8 @@ public class HttpWriterImpl implements HttpWriter {
             return;
         }
         throwIfFailed();
-        List<T> values = new ArrayList<>(batch.keySet());
-        List<T> tmps = null;
+        List<Object> values = new ArrayList<>(batch.keySet());
+        List<Object> tmps = null;
         try {
             int num = batch.size();
             int times = num / this.config.batchSize();
@@ -174,7 +172,7 @@ public class HttpWriterImpl implements HttpWriter {
         }
     }
 
-    private <T> void sendBatch(String formattedUrl, Method method, List<T> records) {
+    private void sendBatch(String formattedUrl, Method method, List<Object> records) {
         try {
             SimpleHttpRequest req = SimpleHttpRequest.create(method, URI.create(formattedUrl));
             this.configureRequest(req);

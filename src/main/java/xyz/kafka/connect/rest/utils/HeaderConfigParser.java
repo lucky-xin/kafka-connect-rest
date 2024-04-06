@@ -1,6 +1,7 @@
 package xyz.kafka.connect.rest.utils;
 
 
+import cn.hutool.core.text.CharPool;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.base.Splitter;
@@ -23,9 +24,9 @@ import java.util.concurrent.TimeUnit;
  * @since 2023-03-08
  */
 public class HeaderConfigParser {
-    private static final char HTTP_HEADER_KV_SEPARATOR = ':';
+    private static final char HTTP_HEADER_KV_SEPARATOR = CharPool.COLON;
     private static final HeaderConfigParser INSTANCE = new HeaderConfigParser();
-    private final Splitter headerKeyValueSplitter = Splitter.on(':').limit(2).trimResults();
+    private final Splitter headerKeyValueSplitter = Splitter.on(CharPool.COLON).limit(2).trimResults();
     private final Cache<String, Splitter> splitterCache = Caffeine.newBuilder()
             .expireAfterWrite(1, TimeUnit.HOURS)
             .maximumSize(2)

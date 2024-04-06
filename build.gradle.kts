@@ -195,11 +195,11 @@ tasks.register<Jar>("sourcesJar") {
     archiveClassifier.set("sources")
 }
 
-tasks.register<Jar>("javadocJar") {
-    description = "Create the Javadoc jar"
-    from(tasks.javadoc)
-    archiveClassifier.set("javadoc")
-}
+//tasks.register<Jar>("javadocJar") {
+//    description = "Create the Javadoc jar"
+//    from(tasks.javadoc)
+//    archiveClassifier.set("javadoc")
+//}
 
 publishing {
     publications {
@@ -207,7 +207,7 @@ publishing {
             artifactId = projectName
             from(components["java"])
             artifact(tasks["sourcesJar"])
-            artifact(tasks["javadocJar"])
+//            artifact(tasks["javadocJar"])
             pom {
                 name.set(project.name)
                 description.set(project.description)

@@ -1,4 +1,10 @@
-package xyz.kafka.connect.rest.sink.formatter;
+package xyz.kafka.connect.rest.sink.writer;
+
+/**
+ * @author chaoxin.lu
+ * @version V 1.0
+ * @since 2024-04-06
+ */
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONWriter;
@@ -9,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
 
@@ -41,7 +48,7 @@ public class FastJsonWriter implements ObjectWriter<Map<String, Object>> {
             String jsonTemplate = bodyTemplate.get();
             StringSubstitutor sub = new StringSubstitutor((Map<String, Object>) object);
             result = sub.replace(jsonTemplate);
-            writer.writeString(result);
+            writer.writeBinary(result.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
             log.error("parse object error:" + result, e);
             log.error("object:{}", JSON.toJSONString(object));

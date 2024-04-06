@@ -79,9 +79,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     public static final String RETRY_CODES = "retry.codes";
     private static final String RETRY_CODES_DOC = "Retry codes";
     private static final String RETRY_CODES_DISPLAY = RETRY_CODES_DOC;
-
-    public static final String BATCH_JSON_AS_ARRAY_DOC = "Send individual messages in a JSON array.";
-    public static final String BATCH_JSON_AS_ARRAY_DISPLAY = "JSON as arrays";
     public static final String BATCH_MAX_SIZE = "batch.max.size";
     public static final int BATCH_MAX_SIZE_DEFAULT = 1;
     private static final String BATCH_MAX_SIZE_DOC = "The number of records accumulated in a batch before the HTTP API is invoked.";
@@ -199,9 +196,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private static final String BATCH_SIZE_DISPLAY = "Batch Size";
     private static final int BATCH_SIZE_DEFAULT = 2000;
 
-    public static final String BATCH_JSON_AS_ARRAY = "batch.json.as.array";
-    public static final boolean BATCH_JSON_AS_ARRAY_DEFAULT = true;
-
     private static final String BEHAVIOR_ON_NULL_VALUES_DEFAULT = BehaviorOnNullValues.IGNORE.toString().toLowerCase();
     private static final String BEHAVIOR_ON_ERROR_DEFAULT = BehaviorOnError.FAIL.name().toLowerCase();
     public static final String REQUEST_BODY_FORMAT_DEFAULT = RecordFormat.STRING.toString();
@@ -211,7 +205,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private static final String AUTH_TYPE_DEFAULT = AuthType.NONE.toString();
     public static final String REPORT_ERRORS_AS_DEFAULT = ReportErrorAs.ERROR_STRING.name().toLowerCase();
     private static final ConfigDef.Range NON_NEGATIVE_INT_VALIDATOR = ConfigDef.Range.atLeast(1);
-    private final boolean batchJsonAsArray;
     private final String restApiUrl;
     private final BehaviorOnNullValues behaviorOnNullValues;
     private final int maxRetries;
@@ -335,7 +328,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
         this.proxyEnabled = !StringUtil.isEmpty(proxyHost) && proxyPort > 0;
         this.sslEnabled = sslProtocol(restApiUrl) || sslProtocol(oauthTokenUrl);
         this.jsonDataConfig = new JsonDataConfig(originals);
-        this.batchJsonAsArray = getBoolean(BATCH_JSON_AS_ARRAY);
     }
 
     public abstract Method reqMethod();
@@ -482,16 +474,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
                 ++order,
                 ConfigDef.Width.SHORT,
                 BATCH_SIZE_DISPLAY
-        ).define(
-                BATCH_JSON_AS_ARRAY,
-                ConfigDef.Type.BOOLEAN,
-                BATCH_JSON_AS_ARRAY_DEFAULT,
-                ConfigDef.Importance.HIGH,
-                BATCH_JSON_AS_ARRAY_DOC,
-                CONNECTION_GROUP,
-                ++order,
-                ConfigDef.Width.SHORT,
-                BATCH_JSON_AS_ARRAY_DISPLAY
         );
     }
 
@@ -792,6 +774,9 @@ public abstract class AbstractRestConfig extends AbstractConfig {
         return configDef;
     }
 
+    /**
+     * 格式化方式
+     */
     public enum RecordFormat {
         /**
          *
@@ -801,7 +786,7 @@ public abstract class AbstractRestConfig extends AbstractConfig {
 
         public static RecordFormat valueOfIgnoreCase(String value) {
             return Arrays.stream(values())
-                    .filter(rf -> rf.toString().equalsIgnoreCase(value))
+                    .filter(rf -> rf.name().equalsIgnoreCase(value))
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException(String.format("Record format '%s' not found (%s)",
                             value, asStringList())));
@@ -813,7 +798,8 @@ public abstract class AbstractRestConfig extends AbstractConfig {
         }
 
         public static List<String> asStringList() {
-            return Arrays.stream(values()).map(RecordFormat::toString)
+            return Arrays.stream(values())
+                    .map(RecordFormat::toString)
                     .toList();
         }
     }
@@ -1008,9 +994,5 @@ public abstract class AbstractRestConfig extends AbstractConfig {
 
     public final JsonDataConfig jsonDataConfig() {
         return jsonDataConfig;
-    }
-
-    public boolean batchJsonAsArray() {
-        return batchJsonAsArray;
     }
 }

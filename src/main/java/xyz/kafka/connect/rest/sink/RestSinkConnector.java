@@ -8,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import xyz.kafka.connect.rest.AbstractRestConfig;
 import xyz.kafka.connect.rest.Versions;
-import xyz.kafka.connect.rest.validator.BatchSizeValidator;
 import xyz.kafka.connect.rest.validator.HeadersValidator;
 import xyz.kafka.connect.rest.validator.OAuth2Validator;
 import xyz.kafka.connect.rest.validator.UrlTemplateParamsValidator;
@@ -64,7 +63,6 @@ public final class RestSinkConnector extends SinkConnector {
                 connectorConfigs,
                 new OAuth2Validator(),
                 new HeadersValidator(AbstractRestConfig.HEADERS, AbstractRestConfig.HEADER_SEPARATOR),
-                new BatchSizeValidator(),
                 new UrlTemplateParamsValidator()
         ).validate();
     }

@@ -24,7 +24,7 @@ public abstract class AuthHandlerBase implements AuthHandler {
 
     protected AuthHandlerBase(AbstractRestConfig config) {
         this.config = config;
-        cache = Caffeine.newBuilder()
+        this.cache = Caffeine.newBuilder()
                 .expireAfterWrite(config.authExpiresInSeconds(), TimeUnit.SECONDS)
                 .maximumSize(2)
                 .ticker(Ticker.systemTicker())

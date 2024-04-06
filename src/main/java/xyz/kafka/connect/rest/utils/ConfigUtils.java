@@ -1,5 +1,7 @@
 package xyz.kafka.connect.rest.utils;
 
+import cn.hutool.core.text.StrPool;
+
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -13,17 +15,17 @@ import static java.util.stream.IntStream.rangeClosed;
 public class ConfigUtils {
 
 
-    private static Stream<String> breakDownList(String itemList, String splitter) {
+    private static Stream<String> breakDownList(String itemList) {
         if (itemList == null || itemList.isEmpty()) {
             return Stream.empty();
         }
-        return Stream.of(itemList.split(splitter))
+        return Stream.of(itemList.split(StrPool.COMMA))
                 .map(String::trim)
                 .filter(it -> !it.isEmpty());
     }
 
     public static Set<Integer> parseIntegerRangedList(String rangedList) {
-        return breakDownList(rangedList, ",")
+        return breakDownList(rangedList)
                 .map(ConfigUtils::parseIntegerRange)
                 .flatMap(Set::stream)
                 .collect(toSet());
