@@ -59,7 +59,9 @@ extra.apply {
 val projectName = "kafka-connect-rest"
 
 dependencies {
-    implementation("org.apache.httpcomponents.client5:httpclient5:${project.extra["httpclient5.version"]}")
+    implementation("org.apache.httpcomponents.client5:httpclient5:${project.extra["httpclient5.version"]}") {
+        exclude(group = "org.slf4j", module = "*")
+    }
     implementation("org.apache.commons:commons-text:${project.extra["commons.text.version"]}")
 
     compileOnly("xyz.kafka.connector:kafka-connector-common:${project.extra["xyz.kafka.connector.version"]}")
