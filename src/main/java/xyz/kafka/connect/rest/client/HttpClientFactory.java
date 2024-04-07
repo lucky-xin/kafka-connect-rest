@@ -10,11 +10,19 @@ import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
 import org.apache.hc.client5.http.impl.async.HttpAsyncClients;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
 import org.apache.hc.client5.http.nio.AsyncClientConnectionManager;
+import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
+import org.apache.hc.client5.http.socket.LayeredConnectionSocketFactory;
+import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
+import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.URIScheme;
@@ -240,6 +248,38 @@ public class HttpClientFactory {
                 final Collection<Class<? extends IOException>> clazzes,
                 final Collection<Integer> codes) {
             super(maxRetries, defaultRetryInterval, clazzes, codes);
+        }
+    }
+
+    public CloseableHttpClient syncClient() {
+        HttpClientBuilder builder = HttpClients.custom();
+        credentialsProvider().ifPresent(builder::setDefaultCredentialsProvider);
+        return builder.setConnectionManager(createSyncConnectionManager())
+                .setRetryStrategy(requestRetryStrategy)
+                .setDefaultRequestConfig(requestConfig)
+                .build();
+    }
+
+    private PoolingHttpClientConnectionManager createSyncConnectionManager() {
+        Registry<ConnectionSocketFactory> registry = RegistryBuilder.<ConnectionSocketFactory>create()
+                .register(URIScheme.HTTP.id, PlainConnectionSocketFactory.getSocketFactory())
+                .register(URIScheme.HTTPS.id, connectionSocketFactory())
+                .build();
+        return new PoolingHttpClientConnectionManager(
+                registry,
+                PoolConcurrencyPolicy.LAX,
+                PoolReusePolicy.LIFO,
+                TimeValue.ofHours(1)
+        );
+    }
+
+    private static LayeredConnectionSocketFactory connectionSocketFactory() {
+        try {
+            TrustStrategy ts = (x509Certificates, s) -> true;
+            SSLContext context = SSLContexts.custom().loadTrustMaterial(ts).build();
+            return new SSLConnectionSocketFactory(context, new NoopHostnameVerifier());
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
         }
     }
 }
