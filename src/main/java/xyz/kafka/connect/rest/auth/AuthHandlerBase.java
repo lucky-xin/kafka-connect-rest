@@ -33,8 +33,8 @@ public abstract class AuthHandlerBase implements AuthHandler {
     }
 
     @Override
-    public void setAuthentication(HttpRequest... requests) {
-        Header header = cache.get(requests[0].getRequestUri(), k -> {
+    public void setAuthentication(HttpRequest req) {
+        Header header = cache.get(req.getRequestUri(), k -> {
             try {
                 return this.getAuthorizationHeaderValue();
             } catch (IOException e) {
@@ -42,9 +42,7 @@ public abstract class AuthHandlerBase implements AuthHandler {
             }
         });
         if (header != null) {
-            for (HttpRequest request : requests) {
-                request.addHeader(header);
-            }
+            req.addHeader(header);
         }
     }
 

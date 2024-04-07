@@ -12,8 +12,15 @@ import java.io.IOException;
  * @version V 1.0
  * @since 2023-07-20
  */
+@FunctionalInterface
 public interface AuthHandler {
-    void setAuthentication(HttpRequest... reqs) throws IOException;
+    /**
+     * 设置认证头
+     *
+     * @param req
+     * @throws IOException
+     */
+    void setAuthentication(HttpRequest req) throws IOException;
 
     /**
      * 这个函数是一个Java接口中的默认方法，它的功能是返回一个Header对象，该对象表示授权头部值。

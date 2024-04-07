@@ -16,7 +16,8 @@ public class AuthHandlerFactory {
         return switch (config.authType()) {
             case BASIC -> new BasicAuthHandler(config);
             case OAUTH2 -> new OAuth2AuthHandler(clientFactory, config);
-            case NONE -> new NoAuthHandler();
+            case NONE -> req -> {
+            };
             case THIRD_PARTY -> new ThirdPartyAuthHandler(clientFactory, config);
             default ->  throw new IllegalStateException("Unexpected auth type: " + config.authType());
         };
