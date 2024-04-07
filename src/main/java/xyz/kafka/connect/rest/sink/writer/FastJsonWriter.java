@@ -1,11 +1,5 @@
 package xyz.kafka.connect.rest.sink.writer;
 
-/**
- * @author chaoxin.lu
- * @version V 1.0
- * @since 2024-04-06
- */
-
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONWriter;
 import com.alibaba.fastjson2.writer.ObjectWriter;
