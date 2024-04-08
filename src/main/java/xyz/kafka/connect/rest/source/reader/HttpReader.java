@@ -1,6 +1,6 @@
 package xyz.kafka.connect.rest.source.reader;
 /*
- *Copyright © 2024 chaoxin.lu
+ *            Copyright © 2024 chaoxin.lu
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -16,9 +16,9 @@ package xyz.kafka.connect.rest.source.reader;
  */
 
 import org.apache.kafka.connect.source.SourceRecord;
-import xyz.kafka.connect.rest.model.Offset;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * HttpReader
@@ -34,5 +34,5 @@ public interface HttpReader {
      * @param offset 位移
      * @return
      */
-    List<SourceRecord> poll(Offset offset);
+    List<SourceRecord> poll(Map<String, Object> offset);
 }

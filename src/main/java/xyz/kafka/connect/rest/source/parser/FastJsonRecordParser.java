@@ -1,6 +1,6 @@
 package xyz.kafka.connect.rest.source.parser;
 /*
- *Copyright © 2024 chaoxin.lu
+ *            Copyright © 2024 chaoxin.lu
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceRecord;
-import xyz.kafka.connect.rest.model.Offset;
 import xyz.kafka.connect.rest.source.RestSourceConnectorConfig;
 import xyz.kafka.connector.utils.StructUtil;
 import xyz.kafka.registry.client.CachedSchemaRegistryCli;
@@ -49,6 +48,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -84,7 +84,7 @@ public class FastJsonRecordParser implements HttpResponseParser {
             .softValues()
             .build();
 
-    private final AtomicInteger offset = new AtomicInteger(0);
+    private final AtomicInteger localOffset = new AtomicInteger(0);
 
     private RestSourceConnectorConfig c;
 
@@ -141,10 +141,10 @@ public class FastJsonRecordParser implements HttpResponseParser {
     }
 
     protected final SourceRecord toSourceRecord(Map<String, Object> data) {
-        Map<String, Object> offsets = getOffset(data);
-        Instant timestamp = getTimestamp(data)
+        Map<String, Object> offset = getOffset(data);
+        Instant instant = getTimestamp(data)
                 .map(t -> config.timestampParser().parse(t))
-                .orElseGet(() -> ofNullable(offsets.get(this.config.timestampFieldName()))
+                .orElseGet(() -> ofNullable(offset.get(this.config.timestampFieldName()))
                         .map(String.class::cast)
                         .map(t -> config.timestampParser().parse(t))
                         .orElse(Instant.now())
@@ -153,10 +153,14 @@ public class FastJsonRecordParser implements HttpResponseParser {
         Struct keyStruct = toStruct(key, config.keySubjectName(), true);
         Struct valueStruct = toStruct(data, config.valueSubjectName(), false);
         Map<String, ?> sourcePartition = Collections.emptyMap();
-        int o = config.offsetFieldName()
+        int current = config.offsetFieldName()
                 .map(t -> MapUtil.getInt(data, t))
-                .orElse(this.offset.incrementAndGet());
-        Map<String, ?> sourceOffset = Offset.of(offsets, key, timestamp, o).toMap();
+                .orElse(this.localOffset.incrementAndGet());
+        Map<String, Object> sourceOffset = new HashMap<>(offset);
+
+        sourceOffset.put(FastJsonRecordParserConfig.KEY_KEY, key);
+        sourceOffset.put(FastJsonRecordParserConfig.CURRENT_KEY, current);
+        sourceOffset.put(FastJsonRecordParserConfig.TIMESTAMP_KEY, offset);
         c.offsetTracker().pendingRecord(sourceOffset);
         return new SourceRecord(
                 sourcePartition,
@@ -167,7 +171,7 @@ public class FastJsonRecordParser implements HttpResponseParser {
                 keyStruct,
                 valueStruct.schema(),
                 valueStruct,
-                timestamp.toEpochMilli()
+                instant.toEpochMilli()
         );
     }
 

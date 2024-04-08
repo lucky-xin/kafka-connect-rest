@@ -5,7 +5,6 @@ import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import xyz.kafka.connect.rest.Versions;
-import xyz.kafka.connect.rest.model.Offset;
 import xyz.kafka.connect.rest.source.reader.HttpReaderImpl;
 import xyz.kafka.connector.source.RateLimitSourceTask;
 
@@ -27,7 +26,7 @@ public class RestSourceTask extends RateLimitSourceTask {
 
     private static final Logger log = LoggerFactory.getLogger(RestSourceTask.class);
 
-    private Offset offset;
+    private Map<String, Object> offset;
 
     private HttpReaderImpl reader;
 
@@ -49,12 +48,12 @@ public class RestSourceTask extends RateLimitSourceTask {
 
     }
 
-    private Offset loadOffset(Map<String, String> initialOffset) {
+    private Map<String, Object> loadOffset(Map<String, Object> initialOffset) {
         Map<String, Object> restoredOffset = ofNullable(context)
                 .map(t -> t.offsetStorageReader()
                         .offset(emptyMap())
                 ).orElseGet(HashMap::new);
-        return Offset.of(!restoredOffset.isEmpty() ? restoredOffset : initialOffset);
+        return !restoredOffset.isEmpty() ? restoredOffset : initialOffset;
     }
 
     @Override
@@ -73,10 +72,10 @@ public class RestSourceTask extends RateLimitSourceTask {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public void commit() {
-        offset = config.offsetTracker()
+        offset = (Map<String, Object>) config.offsetTracker()
                 .lowestWatermarkOffset()
-                .map(Offset::of)
                 .orElse(offset);
         log.debug("Offset set to {}", offset);
     }

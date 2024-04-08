@@ -1,6 +1,6 @@
 package xyz.kafka.connect.rest.sink.writer;
 /*
- *Copyright © 2024 chaoxin.lu
+ *            Copyright © 2024 chaoxin.lu
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,12 +32,12 @@ import org.slf4j.LoggerFactory;
 import xyz.kafka.connect.rest.auth.AuthHandler;
 import xyz.kafka.connect.rest.auth.AuthHandlerFactory;
 import xyz.kafka.connect.rest.client.HttpClientFactory;
-import xyz.kafka.connect.rest.enums.BehaviorOnError;
 import xyz.kafka.connect.rest.enums.BehaviorOnNullValues;
 import xyz.kafka.connect.rest.exception.RequestFailureException;
 import xyz.kafka.connect.rest.sink.RestSinkConnectorConfig;
 import xyz.kafka.connect.rest.sink.formatter.BodyFormatter;
 import xyz.kafka.connect.rest.sink.formatter.BodyFormatterFactory;
+import xyz.kafka.connector.enums.BehaviorOnError;
 import xyz.kafka.connector.utils.StructUtil;
 
 import java.io.IOException;

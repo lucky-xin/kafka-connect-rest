@@ -56,7 +56,7 @@ public class RestSourceConnectorConfig extends AbstractRestConfig {
 
     private final List<BasicNameValuePair> requestParams;
 
-    private final Map<String, String> initialOffset;
+    private final Map<String, ?> initialOffset;
     private final HttpResponseParser responseParser;
     private final SourceAsyncOffsetTracker offsetTracker;
     private final String offsetField;
@@ -81,7 +81,8 @@ public class RestSourceConnectorConfig extends AbstractRestConfig {
                 .trimResults()
                 .omitEmptyStrings()
                 .withKeyValueSeparator("=")
-                .split(getString(OFFSET_INITIAL));
+                .split(getString(OFFSET_INITIAL))
+        ;
         this.offsetField = getString(RESPONSE_OFFSET_FIELD);
         this.responseParser = (HttpResponseParser) getClass(RESPONSE_PARSER)
                 .getConstructor()
@@ -156,8 +157,9 @@ public class RestSourceConnectorConfig extends AbstractRestConfig {
         return requestParams;
     }
 
-    public Map<String, String> initialOffset() {
-        return initialOffset;
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> initialOffset() {
+        return (Map<String, Object>) initialOffset;
     }
 
 

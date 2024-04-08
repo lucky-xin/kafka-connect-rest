@@ -1,6 +1,6 @@
 package xyz.kafka.connect.rest;
 /*
- *Copyright © 2024 chaoxin.lu
+ *            Copyright © 2024 chaoxin.lu
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,10 +25,10 @@ import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.config.types.Password;
 import xyz.kafka.connect.rest.enums.AuthType;
-import xyz.kafka.connect.rest.enums.BehaviorOnError;
 import xyz.kafka.connect.rest.enums.BehaviorOnNullValues;
 import xyz.kafka.connect.rest.enums.ReportErrorAs;
 import xyz.kafka.connect.rest.utils.HeaderConfigParser;
+import xyz.kafka.connector.enums.BehaviorOnError;
 import xyz.kafka.connector.formatter.json.JsonFormatterConfig;
 import xyz.kafka.connector.recommenders.Recommenders;
 import xyz.kafka.connector.reporter.Reporter;

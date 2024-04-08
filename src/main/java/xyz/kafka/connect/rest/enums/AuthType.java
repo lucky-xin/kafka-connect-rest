@@ -1,6 +1,6 @@
 package xyz.kafka.connect.rest.enums;
 /*
- *Copyright © 2024 chaoxin.lu
+ *            Copyright © 2024 chaoxin.lu
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.

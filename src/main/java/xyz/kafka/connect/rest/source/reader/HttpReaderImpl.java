@@ -1,6 +1,6 @@
 package xyz.kafka.connect.rest.source.reader;
 /*
- *Copyright © 2024 chaoxin.lu
+ *            Copyright © 2024 chaoxin.lu
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@ import org.jetbrains.annotations.NotNull;
 import xyz.kafka.connect.rest.auth.AuthHandler;
 import xyz.kafka.connect.rest.auth.AuthHandlerFactory;
 import xyz.kafka.connect.rest.client.HttpClientFactory;
-import xyz.kafka.connect.rest.model.Offset;
 import xyz.kafka.connect.rest.source.RestSourceConnectorConfig;
 import xyz.kafka.connect.rest.source.parser.HttpResponseParser;
 import xyz.kafka.utils.StringUtil;
@@ -86,7 +85,7 @@ public class HttpReaderImpl implements HttpReader {
                 .anyMatch(h -> h.getName().equals(HttpHeaders.CONTENT_TYPE));
     }
 
-    private HttpUriRequestBase createRequest(Offset offset) throws IOException {
+    private HttpUriRequestBase createRequest(Map<String, Object> offset) {
         HttpUriRequestBase req = switch (config.reqMethod()) {
             case GET -> {
                 HttpGet get = new HttpGet(URI.create(config.restApiUrl()));
@@ -94,7 +93,7 @@ public class HttpReaderImpl implements HttpReader {
                 yield get;
             }
             case POST -> {
-                Map<String, Object> body = new HashMap<>(offset.toMap());
+                Map<String, Object> body = new HashMap<>(offset);
                 Optional.ofNullable(requestBody)
                         .ifPresent(body::putAll);
                 HttpPost post = new HttpPost(URI.create(config.restApiUrl()));
@@ -116,12 +115,12 @@ public class HttpReaderImpl implements HttpReader {
     }
 
     @Override
-    public List<SourceRecord> poll(Offset offset) {
+    public List<SourceRecord> poll(Map<String, Object> offset) {
         return doPollRecords(offset);
     }
 
     @SuppressWarnings("all")
-    private List<SourceRecord> doPollRecords(Offset offset) {
+    private List<SourceRecord> doPollRecords(Map<String, Object> offset) {
         try {
             HttpUriRequestBase req = this.createRequest(offset);
             HttpClientResponseHandler<List<SourceRecord>> handler = responseParser::parse;
@@ -132,8 +131,8 @@ public class HttpReaderImpl implements HttpReader {
     }
 
     @NotNull
-    private List<NameValuePair> createNameValuePairs(Offset offset) {
-        List<NameValuePair> collect = offset.toMap().entrySet().stream()
+    private List<NameValuePair> createNameValuePairs(Map<String, Object> offset) {
+        List<NameValuePair> collect = offset.entrySet().stream()
                 .map(t -> new BasicNameValuePair(t.getKey(), StringUtil.toString(t.getValue())))
                 .collect(Collectors.toList());
         Optional.ofNullable(requestParams)

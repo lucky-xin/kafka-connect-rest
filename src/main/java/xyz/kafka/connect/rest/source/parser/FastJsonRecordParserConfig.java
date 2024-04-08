@@ -16,6 +16,7 @@ import static org.apache.kafka.common.config.ConfigDef.Importance.MEDIUM;
 import static org.apache.kafka.common.config.ConfigDef.Type.CLASS;
 import static org.apache.kafka.common.config.ConfigDef.Type.LIST;
 import static org.apache.kafka.common.config.ConfigDef.Type.STRING;
+import static xyz.kafka.connect.rest.source.RestSourceConnectorConfig.RESPONSE_OFFSET_FIELD_DEFAULT;
 
 /**
  * FastJsonRecordParserConfig
@@ -39,6 +40,11 @@ public class FastJsonRecordParserConfig extends AbstractConfig {
     private static final String KEY_SCHEMA_SUBJECT_NAME = "key.schema.subject.name";
     private static final String VALUE_SCHEMA_SUBJECT_NAME = "value.schema.subject.name";
     private static final String TOPICS = "topics";
+
+    public static final String KEY_KEY = "key";
+    public static final String CURRENT_KEY = RESPONSE_OFFSET_FIELD_DEFAULT;
+    public static final String TIMESTAMP_KEY = "timestamp";
+
     private final Map<String, JSONPath> keyJsonPaths;
     private final Map<String, JSONPath> offsetJsonPaths;
     private final Optional<JSONPath> timestampJsonPath;
