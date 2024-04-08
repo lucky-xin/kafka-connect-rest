@@ -31,8 +31,6 @@ import xyz.kafka.connect.rest.utils.HeaderConfigParser;
 import xyz.kafka.connector.enums.BehaviorOnError;
 import xyz.kafka.connector.formatter.json.JsonFormatterConfig;
 import xyz.kafka.connector.recommenders.Recommenders;
-import xyz.kafka.connector.reporter.Reporter;
-import xyz.kafka.connector.reporter.ReporterConfig;
 import xyz.kafka.connector.validator.Validators;
 import xyz.kafka.serialization.json.JsonDataConfig;
 import xyz.kafka.utils.StringUtil;
@@ -265,9 +263,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private JSONPath thirdPartyAccessTokenTypeJsonPath;
     private String thirdPartyAuthorizationHeaderName;
     private String thirdPartyAuthorizationHeaderPrefix;
-    private final ReportErrorAs reportErrorAs;
-    private Reporter reporter;
-    private ReporterConfig reporterConfig;
     private final JsonFormatterConfig jsonFormatterConfig;
     private final Map<String, Object> sslConfigs;
     private final boolean proxyEnabled;
@@ -323,7 +318,7 @@ public abstract class AbstractRestConfig extends AbstractConfig {
         this.oauthClientHeaders = headerConfigParser.parseHeadersConfig(
                 OAUTH_CLIENT_HEADERS,
                 getString(OAUTH_CLIENT_HEADERS),
-                this.headerSeparator
+                this.oauthClientHeaderSeparator()
         );
         this.oauthClientHeaderSeparator = getString(OAUTH_CLIENT_HEADER_SEPARATOR);
         this.thirdPartyTokenEndpoint = getString(THIRD_PARTY_TOKEN_ENDPOINT);
@@ -338,18 +333,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
             this.thirdPartyAccessTokenTypeJsonPath = JSONPath.of(getString(THIRD_PARTY_ACCESS_TOKEN_TYPE_JSON_PATH));
             this.thirdPartyAuthorizationHeaderName = getString(THIRD_PARTY_AUTHORIZATION_HEADER_NAME);
             this.thirdPartyAuthorizationHeaderPrefix = getString(THIRD_PARTY_AUTHORIZATION_HEADER_PREFIX);
-        }
-
-        this.reportErrorAs = ReportErrorAs.valueOf(getString(REPORT_ERRORS_AS_PROPERTY).toUpperCase());
-        if (originals.containsKey("reporter.result.topic.name")) {
-            this.reporterConfig = new ReporterConfig(
-                    (String) originals().get("name"),
-                    null,
-                    null,
-                    originalsWithPrefix("reporter.")
-            );
-            this.reporter = new Reporter();
-            this.reporter.configure(reporterConfig);
         }
         this.sslConfigs = Collections.unmodifiableMap(
                 sslConfigDef.parse(originalsWithPrefix(CONNECTION_SSL_CONFIG_PREFIX))
@@ -1025,18 +1008,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
 
     public String thirdPartyAuthorizationHeaderPrefix() {
         return thirdPartyAuthorizationHeaderPrefix;
-    }
-
-    public final ReportErrorAs reportErrorAs() {
-        return reportErrorAs;
-    }
-
-    public Reporter reporter() {
-        return reporter;
-    }
-
-    public ReporterConfig reporterConfig() {
-        return reporterConfig;
     }
 
     public final JsonFormatterConfig jsonFormatterConfig() {

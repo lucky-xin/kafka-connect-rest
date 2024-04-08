@@ -254,7 +254,7 @@ public class AuthHandlerFactory {
     HttpPost createThirdPartyTokenRequest() {
         HttpPost post = new HttpPost(URI.create(this.config.thirdPartyTokenEndpoint()));
         post.setEntity(new StringEntity(this.config.thirdPartyTokenReqBody(), ContentType.APPLICATION_JSON));
-        config.headers().forEach(post::addHeader);
+        config.thirdPartyTokenReqHeaders().forEach(post::addHeader);
         return post;
     }
 
