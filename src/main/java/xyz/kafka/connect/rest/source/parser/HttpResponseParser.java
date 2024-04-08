@@ -25,6 +25,12 @@ public interface HttpResponseParser {
      */
     List<SourceRecord> parse(ClassicHttpResponse resp);
 
+    /**
+     * 配置函数，用于根据给定的映射配置抽象配置对象。
+     *
+     * @param map 一个包含配置信息的键值对映射，键和值的类型可以是任意类型。
+     * @param config 要进行配置的抽象配置对象，此对象通过此方法接收配置信息。
+     */
     default void configure(Map<String, ?> map, AbstractConfig config) {
 
     }

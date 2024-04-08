@@ -18,7 +18,7 @@ import static org.apache.kafka.common.config.ConfigDef.Type.LIST;
 import static org.apache.kafka.common.config.ConfigDef.Type.STRING;
 
 /**
- * AbstractJacksonParserConfig
+ * FastJsonRecordParserConfig
  *
  * @author luchaoxin
  * @version V 1.0

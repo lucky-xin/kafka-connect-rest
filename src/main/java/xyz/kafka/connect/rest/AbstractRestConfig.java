@@ -1,6 +1,23 @@
 package xyz.kafka.connect.rest;
+/*
+ *Copyright © 2024 chaoxin.lu
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
 
 import com.alibaba.fastjson2.JSONPath;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.Method;
 import org.apache.kafka.common.config.AbstractConfig;
@@ -149,8 +166,10 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private static final String OAUTH_CLIENT_SECRET_DEFAULT = "";
     private static final String OAUTH_CLIENT_SECRET_DOC = "The secret used when fetching OAuth2 token";
     private static final String OAUTH_CLIENT_SECRET_DISPLAY = "OAuth2 secret";
-    public static final String OAUTH_TOKEN_PATH = "oauth2.token.json.path";
-    public static final String OAUTH_TOKEN_PATH_DEFAULT = "$.access_token";
+    public static final String OAUTH_TOKEN_JSON_PATH = "oauth2.token.json.path";
+    public static final String OAUTH_TOKEN_TYPE_JSON_PATH = "oauth2.token.type.json.path";
+    public static final String OAUTH_TOKEN_JSON_PATH_DEFAULT = "$.access_token";
+    public static final String OAUTH_TOKEN_TYPE_JSON_PATH_DEFAULT = "$.token_type";
     public static final String OAUTH_TOKEN_PATH_DOC = "The JSON path of the property containing the OAuth2 token returned by the http proxy. Default value is ``access_token``.";
     public static final String OAUTH_TOKEN_PATH_DISPLAY = "OAuth2 token property name";
     public static final String OAUTH_CLIENT_AUTH_MODE = "oauth2.client.auth.mode";
@@ -175,6 +194,7 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     public static final String THIRD_PARTY_TOKEN_ENDPOINT = "third.party.token.endpoint";
 
     public static final String THIRD_PARTY_ACCESS_TOKEN_JSON_PATH = "third.party.access.token.json.path";
+    public static final String THIRD_PARTY_ACCESS_TOKEN_TYPE_JSON_PATH = "third.party.access.token.type.json.path";
 
     public static final String THIRD_PARTY_AUTHORIZATION_HEADER_NAME = "third.party.authorization.header.name";
 
@@ -234,13 +254,15 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private final String oauthClientScope;
     private final String oauthSecretsEncoding;
     private final Password oauthClientSecret;
-    private final JSONPath oauthTokenPath;
-    private final String oauthClientHeaders;
+    private final JSONPath oauthTokenJsonPath;
+    private final JSONPath oauthTokenTypeJsonPath;
+    private final List<Header> oauthClientHeaders;
     private final String oauthClientHeaderSeparator;
     private String thirdPartyTokenReqBody;
     private final String thirdPartyTokenEndpoint;
     private List<Header> thirdPartyTokenReqHeaders;
-    private JSONPath thirdPartyAccessTokenPointer;
+    private JSONPath thirdPartyAccessTokenJsonPath;
+    private JSONPath thirdPartyAccessTokenTypeJsonPath;
     private String thirdPartyAuthorizationHeaderName;
     private String thirdPartyAuthorizationHeaderPrefix;
     private final ReportErrorAs reportErrorAs;
@@ -252,6 +274,7 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private final boolean sslEnabled;
     private final int batchSize;
     private final JsonDataConfig jsonDataConfig;
+    private final Cache<String, Header> cache;
 
     protected AbstractRestConfig(ConfigDef configDef, Map<?, ?> originals) {
         super(configDef, originals);
@@ -295,8 +318,13 @@ public abstract class AbstractRestConfig extends AbstractConfig {
         this.oauthClientScope = getString(OAUTH_CLIENT_SCOPE);
         this.oauthSecretsEncoding = getString(OAUTH_CLIENT_AUTH_MODE).toLowerCase();
         this.oauthClientSecret = getPassword(OAUTH_CLIENT_SECRET);
-        this.oauthTokenPath = JSONPath.of(getString(OAUTH_TOKEN_PATH));
-        this.oauthClientHeaders = getString(OAUTH_CLIENT_HEADERS);
+        this.oauthTokenJsonPath = JSONPath.of(getString(OAUTH_TOKEN_JSON_PATH));
+        this.oauthTokenTypeJsonPath = JSONPath.of(getString(OAUTH_TOKEN_TYPE_JSON_PATH));
+        this.oauthClientHeaders = headerConfigParser.parseHeadersConfig(
+                OAUTH_CLIENT_HEADERS,
+                getString(OAUTH_CLIENT_HEADERS),
+                this.headerSeparator
+        );
         this.oauthClientHeaderSeparator = getString(OAUTH_CLIENT_HEADER_SEPARATOR);
         this.thirdPartyTokenEndpoint = getString(THIRD_PARTY_TOKEN_ENDPOINT);
         if (this.thirdPartyTokenEndpoint != null) {
@@ -306,7 +334,8 @@ public abstract class AbstractRestConfig extends AbstractConfig {
                     getString(THIRD_PARTY_TOKEN_REQ_HEADERS),
                     this.headerSeparator
             ).stream().toList();
-            this.thirdPartyAccessTokenPointer = JSONPath.of(getString(THIRD_PARTY_ACCESS_TOKEN_JSON_PATH));
+            this.thirdPartyAccessTokenJsonPath = JSONPath.of(getString(THIRD_PARTY_ACCESS_TOKEN_JSON_PATH));
+            this.thirdPartyAccessTokenTypeJsonPath = JSONPath.of(getString(THIRD_PARTY_ACCESS_TOKEN_TYPE_JSON_PATH));
             this.thirdPartyAuthorizationHeaderName = getString(THIRD_PARTY_AUTHORIZATION_HEADER_NAME);
             this.thirdPartyAuthorizationHeaderPrefix = getString(THIRD_PARTY_AUTHORIZATION_HEADER_PREFIX);
         }
@@ -328,8 +357,18 @@ public abstract class AbstractRestConfig extends AbstractConfig {
         this.proxyEnabled = !StringUtil.isEmpty(proxyHost) && proxyPort > 0;
         this.sslEnabled = sslProtocol(restApiUrl) || sslProtocol(oauthTokenUrl);
         this.jsonDataConfig = new JsonDataConfig(originals);
+        this.cache = Caffeine.newBuilder()
+                .expireAfterWrite(authExpiresInSeconds(), TimeUnit.SECONDS)
+                .maximumSize(1000)
+                .softValues()
+                .build();
     }
 
+    /**
+     * reqMethod
+     *
+     * @return
+     */
     public abstract Method reqMethod();
 
     private static void addConnectionGroup(ConfigDef configDef) {
@@ -552,15 +591,25 @@ public abstract class AbstractRestConfig extends AbstractConfig {
                 ConfigDef.Width.MEDIUM,
                 OAUTH_CLIENT_SECRET_DISPLAY
         ).define(
-                OAUTH_TOKEN_PATH,
+                OAUTH_TOKEN_JSON_PATH,
                 ConfigDef.Type.STRING,
-                OAUTH_TOKEN_PATH_DEFAULT,
+                OAUTH_TOKEN_JSON_PATH_DEFAULT,
                 ConfigDef.Importance.HIGH,
                 OAUTH_TOKEN_PATH_DOC,
                 AUTH_GROUP,
                 order++,
                 ConfigDef.Width.MEDIUM,
                 OAUTH_TOKEN_PATH_DISPLAY
+        ).define(
+                OAUTH_TOKEN_TYPE_JSON_PATH,
+                ConfigDef.Type.STRING,
+                OAUTH_TOKEN_TYPE_JSON_PATH_DEFAULT,
+                ConfigDef.Importance.HIGH,
+                "oauth token type json path",
+                AUTH_GROUP,
+                order++,
+                ConfigDef.Width.MEDIUM,
+                "oauth token type json path"
         ).define(
                 OAUTH_CLIENT_AUTH_MODE,
                 ConfigDef.Type.STRING,
@@ -640,6 +689,16 @@ public abstract class AbstractRestConfig extends AbstractConfig {
                 order++,
                 ConfigDef.Width.SHORT,
                 "The json path of access token used when parse third party token"
+        ).define(
+                THIRD_PARTY_ACCESS_TOKEN_TYPE_JSON_PATH,
+                STRING,
+                null,
+                ConfigDef.Importance.LOW,
+                "The json path of access token type used when parse third party token",
+                AUTH_GROUP,
+                order++,
+                ConfigDef.Width.SHORT,
+                "The json path of access token type used when parse third party token"
         ).define(
                 THIRD_PARTY_AUTHORIZATION_HEADER_NAME,
                 STRING,
@@ -924,11 +983,15 @@ public abstract class AbstractRestConfig extends AbstractConfig {
         return oauthClientSecret;
     }
 
-    public final JSONPath oauthTokenPath() {
-        return oauthTokenPath;
+    public final JSONPath oauthTokenJsonPath() {
+        return oauthTokenJsonPath;
     }
 
-    public final String oauthClientHeaders() {
+    public final JSONPath oauthTokenTypeJsonPath() {
+        return oauthTokenTypeJsonPath;
+    }
+
+    public final List<Header> oauthClientHeaders() {
         return oauthClientHeaders;
     }
 
@@ -948,8 +1011,12 @@ public abstract class AbstractRestConfig extends AbstractConfig {
         return thirdPartyTokenReqHeaders;
     }
 
-    public JSONPath thirdPartyAccessTokenPointer() {
-        return thirdPartyAccessTokenPointer;
+    public JSONPath thirdPartyAccessTokenJsonPath() {
+        return thirdPartyAccessTokenJsonPath;
+    }
+
+    public JSONPath thirdPartyAccessTokenTypeJsonPath() {
+        return thirdPartyAccessTokenTypeJsonPath;
     }
 
     public String thirdPartyAuthorizationHeaderName() {
@@ -994,5 +1061,9 @@ public abstract class AbstractRestConfig extends AbstractConfig {
 
     public final JsonDataConfig jsonDataConfig() {
         return jsonDataConfig;
+    }
+
+    public final Cache<String, Header> authCache() {
+        return cache;
     }
 }
