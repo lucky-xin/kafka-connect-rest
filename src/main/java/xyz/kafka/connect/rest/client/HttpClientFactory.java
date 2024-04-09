@@ -15,6 +15,7 @@ package xyz.kafka.connect.rest.client;
  *   limitations under the License.
  */
 
+import cn.hutool.core.text.StrPool;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.CredentialsProvider;
@@ -49,7 +50,6 @@ import org.apache.hc.core5.pool.PoolReusePolicy;
 import org.apache.hc.core5.reactor.ssl.SSLBufferMode;
 import org.apache.hc.core5.ssl.SSLContextBuilder;
 import org.apache.hc.core5.ssl.SSLContexts;
-import org.apache.hc.core5.ssl.TrustStrategy;
 import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 import org.apache.kafka.common.config.types.Password;
@@ -118,37 +118,44 @@ public class HttpClientFactory {
         return cli;
     }
 
+    /**
+     * 创建一个异步连接管理器，该管理器支持SSL/TLS协议，可以用于HTTP和HTTPS连接。
+     *
+     * @return AsyncClientConnectionManager 异步客户端连接管理器实例，配置了TLS策略和连接池设置。
+     */
     private AsyncClientConnectionManager createAsyncConnectionManager() {
+        // 从配置中提取SSL相关设置
         Map<String, Object> sslConfigs = this.config.sslConfigs();
-        String supportedProtocol = Optional.ofNullable(sslConfigs.get("ssl.protocol"))
+        // 提取支持的SSL协议列表
+        String[] supportedProtocol = Optional.ofNullable(sslConfigs.get("ssl.protocol"))
                 .map(Object::toString)
+                .map(s -> s.split(StrPool.COMMA))
                 .orElse(null);
-
-        String supportedSuites = Optional.ofNullable(sslConfigs.get("cipher.suites"))
+        // 提取支持的加密套件列表
+        String[] supportedSuites = Optional.ofNullable(sslConfigs.get("cipher.suites"))
                 .map(Object::toString)
+                .map(s -> s.split(StrPool.COMMA))
                 .orElse(null);
-        Registry<TlsStrategy> tlsStrategyRegistry = null;
-        if (StringUtil.isNotEmpty(supportedProtocol) && StringUtil.isNotEmpty(supportedSuites)) {
-            DefaultClientTlsStrategy tlsStrategy = new DefaultClientTlsStrategy(
-                    sslContext(),
-                    new String[]{supportedProtocol},
-                    new String[]{supportedSuites},
-                    SSLBufferMode.STATIC,
-                    getHostnameVerifier()
-            );
-            tlsStrategyRegistry = RegistryBuilder.<TlsStrategy>create()
-                    .register(URIScheme.HTTPS.getId(), tlsStrategy)
-                    .build();
-        } else {
-            DefaultClientTlsStrategy tlsStrategy = new DefaultClientTlsStrategy(
-                    sslContext(),
-                    getHostnameVerifier()
-            );
-            tlsStrategyRegistry = RegistryBuilder.<TlsStrategy>create()
-                    .register(URIScheme.HTTPS.getId(), tlsStrategy)
-                    .build();
-        }
-
+        // 创建SSL上下文
+        SSLContext sslContext = sslContext();
+        // 创建客户端TLS策略，配置SSL上下文、支持的协议和加密套件
+        DefaultClientTlsStrategy tlsStrategy = new DefaultClientTlsStrategy(
+                sslContext,
+                supportedProtocol,
+                supportedSuites,
+                SSLBufferMode.STATIC,
+                getHostnameVerifier()
+        );
+        DefaultClientTlsStrategy noneTlsStrategy = new DefaultClientTlsStrategy(
+                noneSslContext(),
+                NoopHostnameVerifier.INSTANCE
+        );
+        // 注册TLS策略到TLS策略注册表，用于HTTP和HTTPS
+        Registry<TlsStrategy> tlsStrategyRegistry = RegistryBuilder.<TlsStrategy>create()
+                .register(URIScheme.HTTP.id, noneTlsStrategy)
+                .register(URIScheme.HTTPS.getId(), tlsStrategy)
+                .build();
+        // 创建并返回一个配置了TLS策略注册表、连接池策略和超时设置的异步连接管理器
         return new PoolingAsyncClientConnectionManager(
                 tlsStrategyRegistry,
                 PoolConcurrencyPolicy.LAX,
@@ -177,12 +184,25 @@ public class HttpClientFactory {
         }
     }
 
+    private SSLContext noneSslContext() {
+        try {
+            return SSLContexts.custom()
+                    .loadTrustMaterial((x509Certificates, s) -> true)
+                    .build();
+        } catch (KeyManagementException e2) {
+            throw new ConnectException("KeyManagement Exception configuring SSL", e2);
+        } catch (KeyStoreException e3) {
+            throw new ConnectException("KeyStore Exception configuring SSL", e3);
+        } catch (NoSuchAlgorithmException e4) {
+            throw new ConnectException("NoSuchAlgorithm Exception configuring SSL", e4);
+        }
+    }
+
     private SSLContext sslContext() {
         try {
             if (!this.config.sslEnabled()) {
-                TrustStrategy ts = (x509Certificates, s) -> true;
                 return SSLContexts.custom()
-                        .loadTrustMaterial(ts)
+                        .loadTrustMaterial((x509Certificates, s) -> true)
                         .build();
             }
             log.info("Configuring SSL for this connection");
@@ -288,11 +308,9 @@ public class HttpClientFactory {
         );
     }
 
-    private static LayeredConnectionSocketFactory connectionSocketFactory() {
+    private LayeredConnectionSocketFactory connectionSocketFactory() {
         try {
-            TrustStrategy ts = (x509Certificates, s) -> true;
-            SSLContext context = SSLContexts.custom().loadTrustMaterial(ts).build();
-            return new SSLConnectionSocketFactory(context, new NoopHostnameVerifier());
+            return new SSLConnectionSocketFactory(sslContext(), getHostnameVerifier());
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
