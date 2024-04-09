@@ -29,7 +29,6 @@ import xyz.kafka.connect.rest.enums.BehaviorOnNullValues;
 import xyz.kafka.connect.rest.enums.ReportErrorAs;
 import xyz.kafka.connect.rest.utils.HeaderConfigParser;
 import xyz.kafka.connector.enums.BehaviorOnError;
-import xyz.kafka.connector.formatter.json.JsonFormatterConfig;
 import xyz.kafka.connector.recommenders.Recommenders;
 import xyz.kafka.connector.validator.Validators;
 import xyz.kafka.serialization.json.JsonDataConfig;
@@ -133,7 +132,8 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     public static final String REQUEST_TIMEOUT_MS_DOC = "Time to wait for a request response to arrive.";
     public static final String REQUEST_TIMEOUT_MS_DISPLAY = "HTTP Request Timeout (ms)";
     public static final String AUTH_TYPE = "auth.type";
-    private static final String AUTH_TYPE_DOC = "Authentication type of the endpoint. Valid values  are ``NONE``, ``BASIC``, ``OAUTH2``(Client Credentials grant type only), ``THIRD_PARTY`` .";
+    private static final String AUTH_TYPE_DOC = "Authentication type of the endpoint. " +
+            "Valid values  are ``NONE``, ``BASIC``, ``OAUTH2``(Client Credentials grant type only), ``THIRD_PARTY`` .";
     private static final String AUTH_TYPE_DISPLAY = "Endpoint Authentication type";
 
     public static final String AUTH_EXPIRES_IN_SECONDS = "auth.expires_in_seconds";
@@ -150,7 +150,8 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private static final String AUTH_PASSWORD_DISPLAY = "Auth password";
     public static final String OAUTH_TOKEN_URL = "oauth2.token.url";
     private static final String OAUTH_TOKEN_URL_DEFAULT = "";
-    private static final String OAUTH_TOKEN_URL_DOC = "The URL to be used for fetching OAuth2 token. Client Credentials is the only supported grant type.";
+    private static final String OAUTH_TOKEN_URL_DOC = "The URL to be used for fetching OAuth2 token. " +
+            "Client Credentials is the only supported grant type.";
     private static final String OAUTH_TOKEN_URL_DISPLAY = "OAuth2 token url";
     public static final String OAUTH_CLIENT_ID = "oauth2.client.id";
     private static final String OAUTH_CLIENT_ID_DEFAULT = "";
@@ -159,7 +160,8 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     public static final String OAUTH_CLIENT_SCOPE = "oauth2.client.scope";
     private static final String OAUTH_CLIENT_SCOPE_DEFAULT = "any";
     private static final String OAUTH_CLIENT_SCOPE_DOC = "The scope used when fetching OAuth2 token";
-    private static final String OAUTH_CLIENT_SCOPE_DISPLAY = "OAuth2 scope. If empty, this parameter is not set in the authorization request.";
+    private static final String OAUTH_CLIENT_SCOPE_DISPLAY = "OAuth2 scope. If empty, this parameter " +
+            "is not set in the authorization request.";
     public static final String OAUTH_CLIENT_SECRET = "oauth2.client.secret";
     private static final String OAUTH_CLIENT_SECRET_DEFAULT = "";
     private static final String OAUTH_CLIENT_SECRET_DOC = "The secret used when fetching OAuth2 token";
@@ -231,7 +233,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private final int connectTimeoutMs;
     private final int requestTimeoutMs;
     private final List<Header> headers;
-    private final String headerSeparator;
     private final String contentType;
     private final String batchSeparator;
     private final String batchPrefix;
@@ -255,7 +256,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private final JSONPath oauthTokenJsonPath;
     private final JSONPath oauthTokenTypeJsonPath;
     private final List<Header> oauthClientHeaders;
-    private final String oauthClientHeaderSeparator;
     private String thirdPartyTokenReqBody;
     private final String thirdPartyTokenEndpoint;
     private List<Header> thirdPartyTokenReqHeaders;
@@ -263,7 +263,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     private JSONPath thirdPartyAccessTokenTypeJsonPath;
     private String thirdPartyAuthorizationHeaderName;
     private String thirdPartyAuthorizationHeaderPrefix;
-    private final JsonFormatterConfig jsonFormatterConfig;
     private final Map<String, Object> sslConfigs;
     private final boolean proxyEnabled;
     private final boolean sslEnabled;
@@ -274,8 +273,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
     protected AbstractRestConfig(ConfigDef configDef, Map<?, ?> originals) {
         super(configDef, originals);
         this.restApiUrl = this.getString(REST_API_URL);
-        this.jsonFormatterConfig = new JsonFormatterConfig(
-                originalsWithPrefix(AbstractRestConfig.RecordFormat.JSON.name().toLowerCase() + "."));
         ConfigDef sslConfigDef = new ConfigDef();
         SslConfigs.addClientSslSupport(sslConfigDef);
         this.batchSize = getInt(BATCH_SIZE_CONFIG);
@@ -289,14 +286,8 @@ public abstract class AbstractRestConfig extends AbstractConfig {
                 .toList();
         this.connectTimeoutMs = getInt(CONNECT_TIMEOUT_MS);
         this.requestTimeoutMs = getInt(REQUEST_TIMEOUT_MS);
-        this.headerSeparator = getString(HEADER_SEPARATOR);
+        String headerSeparator = getString(HEADER_SEPARATOR);
         this.contentType = getString(REQUEST_CONTENT_TYPE);
-        HeaderConfigParser headerConfigParser = HeaderConfigParser.getInstance();
-        this.headers = headerConfigParser.parseHeadersConfig(
-                HEADERS,
-                this.getString(HEADERS),
-                this.headerSeparator
-        ).stream().toList();
         this.batchSeparator = getString(BATCH_SEPARATOR);
         this.batchPrefix = getString(BATCH_PREFIX);
         this.batchSuffix = getString(BATCH_SUFFIX);
@@ -315,20 +306,12 @@ public abstract class AbstractRestConfig extends AbstractConfig {
         this.oauthClientSecret = getPassword(OAUTH_CLIENT_SECRET);
         this.oauthTokenJsonPath = JSONPath.of(getString(OAUTH_TOKEN_JSON_PATH));
         this.oauthTokenTypeJsonPath = JSONPath.of(getString(OAUTH_TOKEN_TYPE_JSON_PATH));
-        this.oauthClientHeaders = headerConfigParser.parseHeadersConfig(
-                OAUTH_CLIENT_HEADERS,
-                getString(OAUTH_CLIENT_HEADERS),
-                this.oauthClientHeaderSeparator()
-        );
-        this.oauthClientHeaderSeparator = getString(OAUTH_CLIENT_HEADER_SEPARATOR);
+        this.headers = getHeaders(HEADERS, headerSeparator);
+        this.oauthClientHeaders = getHeaders(OAUTH_CLIENT_HEADERS, getString(OAUTH_CLIENT_HEADER_SEPARATOR));
         this.thirdPartyTokenEndpoint = getString(THIRD_PARTY_TOKEN_ENDPOINT);
         if (this.thirdPartyTokenEndpoint != null) {
             this.thirdPartyTokenReqBody = getPassword(THIRD_PARTY_TOKEN_REQ_BODY).value();
-            this.thirdPartyTokenReqHeaders = headerConfigParser.parseHeadersConfig(
-                    THIRD_PARTY_TOKEN_REQ_HEADERS,
-                    getString(THIRD_PARTY_TOKEN_REQ_HEADERS),
-                    this.headerSeparator
-            ).stream().toList();
+            this.thirdPartyTokenReqHeaders = getHeaders(THIRD_PARTY_TOKEN_REQ_HEADERS, headerSeparator);
             this.thirdPartyAccessTokenJsonPath = JSONPath.of(getString(THIRD_PARTY_ACCESS_TOKEN_JSON_PATH));
             this.thirdPartyAccessTokenTypeJsonPath = JSONPath.of(getString(THIRD_PARTY_ACCESS_TOKEN_TYPE_JSON_PATH));
             this.thirdPartyAuthorizationHeaderName = getString(THIRD_PARTY_AUTHORIZATION_HEADER_NAME);
@@ -858,6 +841,14 @@ public abstract class AbstractRestConfig extends AbstractConfig {
         }
     }
 
+    private List<Header> getHeaders(String configKey, String separator) {
+        return HeaderConfigParser.getInstance().parseHeadersConfig(
+                configKey,
+                getString(configKey),
+                separator
+        );
+    }
+
     public final String restApiUrl() {
         return restApiUrl;
     }
@@ -888,10 +879,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
 
     public final List<Header> headers() {
         return headers;
-    }
-
-    public final String headerSeparator() {
-        return headerSeparator;
     }
 
     public final String contentType() {
@@ -978,10 +965,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
         return oauthClientHeaders;
     }
 
-    public final String oauthClientHeaderSeparator() {
-        return oauthClientHeaderSeparator;
-    }
-
     public String thirdPartyTokenReqBody() {
         return thirdPartyTokenReqBody;
     }
@@ -1008,10 +991,6 @@ public abstract class AbstractRestConfig extends AbstractConfig {
 
     public String thirdPartyAuthorizationHeaderPrefix() {
         return thirdPartyAuthorizationHeaderPrefix;
-    }
-
-    public final JsonFormatterConfig jsonFormatterConfig() {
-        return jsonFormatterConfig;
     }
 
     public final Map<String, Object> sslConfigs() {
