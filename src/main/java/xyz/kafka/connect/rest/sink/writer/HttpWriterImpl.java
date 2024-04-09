@@ -181,7 +181,9 @@ public class HttpWriterImpl implements HttpWriter {
             }
         } catch (Exception e) {
             if (tmps != null && reporter != null) {
-                tmps.forEach(tmp -> reporter.report(batch.get(tmp), e));
+                tmps.stream()
+                        .parallel()
+                        .forEach(tmp -> reporter.report(batch.get(tmp), e));
             }
             error.compareAndSet(null, new ConnectException("Bulk request failed", e));
         }
@@ -197,12 +199,12 @@ public class HttpWriterImpl implements HttpWriter {
             req.setBody(payload, contentType);
             log.debug("Submitting {} request with {} records", method, records.size());
             this.executeRequestWithBackOff(req, formattedUrl, payload, records.size());
-        } catch (RequestFailureException | IOException | IllegalArgumentException e) {
+        } catch (RequestFailureException | IllegalArgumentException e) {
             this.handleException(e);
         }
     }
 
-    private void configureRequest(HttpRequest requestBase) throws IOException {
+    private void configureRequest(HttpRequest requestBase) {
         this.authHandler.setAuthentication(requestBase);
         this.config.headers().forEach(requestBase::addHeader);
     }
